@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, Future
+from flow_con.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import Callable, Dict, Tuple, Optional, Set
 

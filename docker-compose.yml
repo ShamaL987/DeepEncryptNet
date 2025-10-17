@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  db:
+    build: .
+    container_name: flow_db
+    ports:
+      - "5432:5432"
+    environment:
+      # runtime-only, not stored in image
+      POSTGRES_DB: flows
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  db_data:

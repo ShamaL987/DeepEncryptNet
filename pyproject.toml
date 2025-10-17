@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "deepencryptnet"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.13",
     "dataclasses>=0.8",
     "fastapi>=0.119.0",
     "httpx>=0.28.1",
@@ -11,11 +12,14 @@ dependencies = [
     "notebook>=7.4.7",
     "numpy>=2.3.4",
     "pandas>=2.3.3",
-    "pydantic>=2.12.2",
+    "psycopg2>=2.9.11",
+    "psycopg2-binary>=2.9",
+    "pydantic>=2.7",
     "pyyaml>=6.0.3",
     "scapy>=2.6.1",
     "scikit-learn>=1.7.2",
     "setuptools>=80.9.0",
+    "sqlalchemy>=2.0",
     "torch==2.5.1+cu121",
     "uvicorn[standard]>=0.37.0",
     "wheel>=0.45.1",

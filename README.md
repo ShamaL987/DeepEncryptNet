@@ -15,3 +15,6 @@ Endpoints:
 - `GET /api/flows/open`
 - `GET /api/flows/recent`
 - `WS /ws/live`
+
+
+ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

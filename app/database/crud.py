@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Mapping, Any
 from sqlalchemy.orm import Session
-from .models import FlowMin, FlowStats
+from .models import FlowMin, FlowStats, PredictionResult
 
 def insert_flow_min(db: Session, flow_id: str) -> None:
     """

@@ -3,7 +3,10 @@ import threading
 from fastapi import FastAPI
 
 from app.flow_daemon import tail_loop, CONFIG, log
-from app.db.init_db import ensure_schema
+from app.database.init_db import ensure_schema
+from app.database.event_listeners import trigger_prediction # noqa: F401
+
+
 
 app = FastAPI(title="DeepEncryptNet Flow Daemon")
 

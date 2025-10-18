@@ -16,8 +16,8 @@ from typing import Dict, Tuple, Optional, List, Mapping
 import math
 
 # ---- DB hooks (must exist in your project) ----
-from app.db.db import session_scope
-from app.db.crud import insert_flow_min, upsert_flow_stats
+from app.database.db import session_scope
+from app.database.crud import insert_flow_min, upsert_flow_stats
 
 # -------------------- logging --------------------
 logging.basicConfig(
@@ -219,14 +219,15 @@ class FlowTracker:
         af.packet_times.append((af.packet_count, ts, length_val))
         log.debug(f"[APPEND] {af.flow_id} packet #{af.packet_count}")
 
+    from app.database.models import FlowMin, FlowStats  # 🔁 replace crud import
+
     def _finalize(self, af: ActiveFlow):
         """
         On finalize:
-          1) Move CSV open->final
-          2) Insert minimal record into flows_min (flow_id + extracted_at)
-          3) (Optional) compute + write 17 stats into flow_stats
+          1) Move CSV open→final
+          2) Insert minimal record into flows_min
+          3) (Optional) compute & write 17 stats into flow_stats
         """
-        # move file
         src = self.out_dir / af.csv_rel_path
         dst = self.out_dir / "final" / src.name
         with self._file_locks[src]:
@@ -240,22 +241,30 @@ class FlowTracker:
                     else:
                         log.warning(f"[WARN] Could not move {af.flow_id}: {e}")
 
-        # 2) insert minimal record
+        # 2) insert minimal FlowMin
         try:
+            from app.database.models import FlowMin, FlowStats
             with session_scope() as db:
-                insert_flow_min(db, af.flow_id)
+                if db.get(FlowMin, af.flow_id) is None:
+                    FlowMin(flow_id=af.flow_id).save(db)
         except Exception as e:
-            log.error(f"[DB] insert_flow_min failed for {af.flow_id}: {e}")
+            log.error(f"[DB] FlowMin save failed for {af.flow_id}: {e}")
 
-        # 3) features (17) -> flow_stats
+        # 3) stats -> FlowStats
         if self.cfg.get("enable_stats", True):
             try:
                 stats = compute_17_stats_from_csv(dst, self.cols, idle_threshold=float(self.cfg["idle_timeout_sec"]))
                 if stats:
                     with session_scope() as db:
-                        upsert_flow_stats(db, af.flow_id, stats)
+                        obj = db.get(FlowStats, af.flow_id)
+                        if obj:
+                            for k, v in stats.items():
+                                setattr(obj, k, v)
+                        else:
+                            obj = FlowStats(flow_id=af.flow_id, **stats)
+                        obj.save(db)
             except Exception as e:
-                log.error(f"[DB] upsert_flow_stats failed for {af.flow_id}: {e}")
+                log.error(f"[DB] FlowStats save failed for {af.flow_id}: {e}")
 
         self.stats["flows_finalized"] += 1
         log.info(f"[SAVE] Flow {af.flow_id} → {dst}")
@@ -274,89 +283,127 @@ class FlowTracker:
 # -------------------------------------------------------------------------
 # Stats computation (the 17 features)
 # -------------------------------------------------------------------------
+from pathlib import Path
+from typing import Mapping, Optional, List, Tuple
+import pandas as pd
+import numpy as np
+import ipaddress
+
+def _ts_to_seconds(series: pd.Series) -> pd.Series:
+    """Robust numeric/datetime → float seconds (auto-detect s/ms/ns)."""
+    ts_num = pd.to_numeric(series, errors="coerce")
+    if ts_num.notna().mean() >= 0.9:
+        med = np.nanmedian(ts_num)
+        # Heuristics similar to your earlier script
+        if med > 1e11:      # very large → likely nanoseconds
+            return (ts_num / 1e9).astype(float)
+        elif med > 1e10:    # borderline large → also nanoseconds
+            return (ts_num / 1e9).astype(float)
+        elif med > 1e6:     # likely milliseconds (Unix ms ~ 1.7e12; but some logs put ms as ~1e9)
+            return (ts_num / 1e3).astype(float)
+        else:               # seconds
+            return ts_num.astype(float)
+    # Datetime strings
+    ts = pd.to_datetime(series, errors="coerce", utc=True)
+    return ts.astype("int64") / 1e9  # ns → s
+
+
+def _endpoint_key(ip_str: str, port_str: str) -> Tuple[Tuple[int, ...], int, str]:
+    """Parse endpoint to a sortable key: (ip_octets_or_hextets, port_int, original_ip).
+       Works for IPv4/IPv6; falls back to string if parsing fails."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        # For IPv4 → 4 octets; IPv6 → 16 bytes; both comparable as tuples
+        ip_tuple = tuple(int(b) for b in ip.packed)
+    except Exception:
+        # fall back to string ordering if unparseable
+        ip_tuple = tuple(map(ord, ip_str))
+    try:
+        p = int(port_str)
+    except Exception:
+        p = 0
+    return (ip_tuple, p, ip_str)
+
+def _stable_fwd_mask(df: pd.DataFrame, cols: Mapping[str, str]) -> pd.Series:
+    """Decide a single 'forward' endpoint for the whole flow, then mark rows."""
+    sip = df[cols["src_ip"]].astype(str)
+    dip = df[cols["dst_ip"]].astype(str)
+    sport = df[cols["src_port"]].astype(str)
+    dport = df[cols["dst_port"]].astype(str)
+
+    # Compute the canonical low/high endpoints ONCE using the first packet
+    a_key = _endpoint_key(sip.iloc[0], sport.iloc[0])
+    b_key = _endpoint_key(dip.iloc[0], dport.iloc[0])
+    low_is_src = (a_key <= b_key)
+
+    # Forward means "same side as the chosen low endpoint" across ALL packets
+    if low_is_src:
+        return (sip == sip.iloc[0]) & (sport == sport.iloc[0])
+    else:
+        return (sip == dip.iloc[0]) & (sport == dport.iloc[0])
+
 def compute_17_stats_from_csv(path: Path, cols: Mapping[str, str], idle_threshold: float) -> Optional[dict]:
     """
-    Compute the requested 17 per-flow features from the finalized per-flow CSV.
-    Assumptions:
-      - timestamps in `cols["timestamp"]` (ISO or numeric)
-      - optional byte length in `cols["length"]`
-      - forward/backward are derived deterministically from the canonical
-        endpoint ordering (the same ordering that formed the flow_id).
+    Compute 17 per-flow features compatible with your CNN/RL pipeline.
+
+    Returns a dict with:
+      duration, flowBytesPerSecond, flowPktsPerSecond,
+      max_active, max_biat, max_fiat, max_flowiat,
+      mean_biat, mean_fiat, mean_flowiat,
+      min_biat, min_fiat, min_flowiat,
+      std_active, std_flowiat,
+      total_biat, total_fiat
     """
-    import pandas as pd
     try:
         df = pd.read_csv(path)
         if df.empty:
             return None
 
-        # --- timestamps to seconds ---
-        ts_raw = df[cols["timestamp"]]
-        ts_num = pd.to_numeric(ts_raw, errors="coerce")
-        if ts_num.notna().mean() >= 0.9:
-            ts_s = ts_num.astype(float)
-        else:
-            ts = pd.to_datetime(ts_raw, errors="coerce", utc=True)
-            ts_s = ts.view("int64") / 1e9
-
-        # sort by time to create IAT series
-        df = df.assign(__ts=ts_s).sort_values("__ts").reset_index(drop=True)
+        # --- timestamps → seconds, then time-sort
+        t_seconds = _ts_to_seconds(df[cols["timestamp"]])
+        df = df.assign(__ts=t_seconds).sort_values("__ts").reset_index(drop=True)
         t = df["__ts"].astype(float)
 
-        # lengths (optional)
-        length_s = None
-        if "length" in cols and cols["length"] in df.columns:
-            length_s = pd.to_numeric(df[cols["length"]], errors="coerce")
+        # --- lengths (optional → use 0 default)
+        length_s = pd.to_numeric(df.get(cols.get("length", ""), pd.Series([0]*len(df))), errors="coerce").fillna(0.0)
+        bytes_total = float(length_s.sum())
 
-        # derive deterministic forward/backward:
-        # forward endpoint is lexicographically smaller (ip,port) pair.
-        # packets whose (src_ip,src_port) equals 'low' are forward; else backward.
-        sip = df[cols["src_ip"]].astype(str)
-        dip = df[cols["dst_ip"]].astype(str)
-        sport = df[cols["src_port"]].astype(str)
-        dport = df[cols["dst_port"]].astype(str)
-
-        a = sip.str.cat(sport, sep=":")
-        b = dip.str.cat(dport, sep=":")
-        low_pair = pd.DataFrame({"a": a, "b": b})
-        # Determine which side is the "low" for the flow based on the first row
-        low_is_src = (low_pair.loc[0, "a"] <= low_pair.loc[0, "b"])
-        fwd_mask = (a <= b) if low_is_src else (a >= b)
-        # Note: This keeps direction consistent across the flow using the same rule.
-
-        # ---- Base quantities ----
-        n = len(t)
-        duration = float((t.iloc[-1] - t.iloc[0])) if n > 1 else 0.0
-
-        bytes_total = float(length_s.fillna(0).sum()) if length_s is not None else float("nan")
-        flowBytesPerSecond = (bytes_total / duration) if duration > 0 else float("nan")
-        flowPktsPerSecond = (n / duration) if duration > 0 else float("nan")
-
-        # IATs
-        iat = t.diff().dropna()
-        # Flow IAT stats
-        max_flowiat = float(iat.max()) if not iat.empty else float("nan")
-        mean_flowiat = float(iat.mean()) if not iat.empty else float("nan")
-        min_flowiat = float(iat.min()) if not iat.empty else float("nan")
-        std_flowiat = float(iat.std(ddof=1)) if len(iat) > 1 else float("nan")
-
-        # Forward / Backward split
+        # --- forward/backward (stable across flow)
+        fwd_mask = _stable_fwd_mask(df, cols)
         tf = t[fwd_mask].reset_index(drop=True)
         tb = t[~fwd_mask].reset_index(drop=True)
 
+        # --- Base
+        n = len(t)
+        if n <= 1:
+            duration = 0.0
+        else:
+            duration = float(t.iloc[-1] - t.iloc[0])
+
+        # Rates (sec-based)
+        flowBytesPerSecond = (bytes_total / duration) if duration > 0 else 0.0
+        flowPktsPerSecond  = (n / duration) if duration > 0 else 0.0
+
+        # IATs
+        iat = t.diff().dropna()
+        def _stats(series: pd.Series):
+            if series is None or series.empty:
+                return dict(max=0.0, mean=0.0, min=0.0, std=0.0, total=0.0)
+            return dict(
+                max=float(series.max()),
+                mean=float(series.mean()),
+                min=float(series.min()),
+                std=float(series.std(ddof=1)) if len(series) > 1 else 0.0,
+                total=float(series.sum()),
+            )
+
+        flow_s = _stats(iat)
         fiat = tf.diff().dropna()
         biat = tb.diff().dropna()
+        f_s = _stats(fiat)
+        b_s = _stats(biat)
 
-        max_fiat = float(fiat.max()) if not fiat.empty else float("nan")
-        mean_fiat = float(fiat.mean()) if not fiat.empty else float("nan")
-        min_fiat = float(fiat.min()) if not fiat.empty else float("nan")
-        total_fiat = float(fiat.sum()) if not fiat.empty else float("nan")
-
-        max_biat = float(biat.max()) if not biat.empty else float("nan")
-        mean_biat = float(biat.mean()) if not biat.empty else float("nan")
-        min_biat = float(biat.min()) if not biat.empty else float("nan")
-        total_biat = float(biat.sum()) if not biat.empty else float("nan")
-
-        # Active windows (contiguous streaks where IAT <= idle_threshold)
+        # Active windows: sum of consecutive gaps ≤ idle_threshold (seconds)
         max_active = 0.0
         std_active = 0.0
         if not iat.empty:
@@ -364,37 +411,38 @@ def compute_17_stats_from_csv(path: Path, cols: Mapping[str, str], idle_threshol
             acc = 0.0
             for gap in iat:
                 if gap <= idle_threshold:
-                    acc += gap
+                    acc += float(gap)
                 else:
                     spans.append(acc)
                     acc = 0.0
-            spans.append(acc)  # last run
+            spans.append(acc)
             if spans:
-                max_active = float(max(spans))
+                max_active = max(spans)
                 std_active = float(pd.Series(spans).std(ddof=1)) if len(spans) > 1 else 0.0
 
-        stats = {
+        return {
             "duration": duration,
             "flowBytesPerSecond": flowBytesPerSecond,
             "flowPktsPerSecond": flowPktsPerSecond,
             "max_active": max_active,
-            "max_biat": max_biat,
-            "max_fiat": max_fiat,
-            "max_flowiat": max_flowiat,
-            "mean_biat": mean_biat,
-            "mean_fiat": mean_fiat,
-            "mean_flowiat": mean_flowiat,
-            "min_biat": min_biat,
-            "min_fiat": min_fiat,
-            "min_flowiat": min_flowiat,
+            "max_biat": b_s["max"],
+            "max_fiat": f_s["max"],
+            "max_flowiat": flow_s["max"],
+            "mean_biat": b_s["mean"],
+            "mean_fiat": f_s["mean"],
+            "mean_flowiat": flow_s["mean"],
+            "min_biat": b_s["min"],
+            "min_fiat": f_s["min"],
+            "min_flowiat": flow_s["min"],
             "std_active": std_active,
-            "std_flowiat": std_flowiat,
-            "total_biat": total_biat,
-            "total_fiat": total_fiat,
+            "std_flowiat": flow_s["std"],
+            "total_biat": b_s["total"],
+            "total_fiat": f_s["total"],
         }
-        return stats
+
     except Exception as e:
-        log.error(f"[STATS] Failed to compute stats from {path}: {e}")
+        # use your existing logger if available
+        print(f"[STATS] Failed to compute stats from {path}: {e}")
         return None
 
 

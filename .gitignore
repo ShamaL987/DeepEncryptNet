@@ -30,11 +30,11 @@ Thumbs.db
 #dir
 
 data-extra-chat-brows-ft-p2p
-deepv3
+deepv8
 app/services/out_results
 
 #files
 
-deepv3.ipynb
-realworld.ipynb
+deepv8.ipynb
+deepv8_predictor.ipynb
 

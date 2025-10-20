@@ -1,8 +1,12 @@
 from __future__ import annotations
-from datetime import datetime
 from sqlalchemy import (
-    Column, String, Float, Integer, DateTime, ForeignKey,
-    UniqueConstraint, func
+    Column,
+    String,
+    Float,
+    Integer,
+    DateTime,
+    ForeignKey,
+    func
 )
 from sqlalchemy.orm import relationship, Session, declared_attr
 
@@ -11,7 +15,11 @@ from .db import Base
 
 
 class BaseModel(Base):
+    """Common base with id, created_at, and updated_at."""
     __abstract__ = True
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     @declared_attr
     def __tablename__(cls):
@@ -22,7 +30,6 @@ class BaseModel(Base):
         db.commit()
         db.refresh(self)
         return self
-
 
 
 class FlowMin(BaseModel):

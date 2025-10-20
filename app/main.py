@@ -3,7 +3,7 @@ import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.database.init_db import ensure_schema
-from app.database.event_listeners import trigger_prediction  # noqa: F401
+import app.database.event_listeners # noqa: F401
 from app.settings import get_settings, log
 from app.network_flow_tracker import tail_loop
 

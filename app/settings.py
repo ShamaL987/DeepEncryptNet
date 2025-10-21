@@ -1,29 +1,60 @@
-import yaml
-from pathlib import Path
+from __future__ import annotations
 
-def load_settings():
-    # Load YAML or return a dict; adapt to your current config structure
-    p = Path("app/config.yaml")
-    data = {}
-    if p.exists():
-        data = yaml.safe_load(p.read_text(encoding="utf-8"))
-    # Ensure defaults
-    data.setdefault("flow_daemon", {
-        "csv_path": "../AIMchat2.csv",
-        "poll_interval_sec": 2.0,
-        "idle_timeout_sec": 15.0,
-        "active_timeout_sec": 1800.0,
-        "https_only": True,
-        "protocol_filter": ["TCP"],
-        "output_dir": "app/data/extracted",
-        "db_path": "app/data/flow_state.db",
-        "columns": {
-            "timestamp": "timestamp",
-            "src_ip": "src_ip",
-            "src_port": "src_port",
-            "dst_ip": "dst_ip",
-            "dst_port": "dst_port",
-            "protocol": "protocol",
-        }
-    })
-    return data
+import logging
+import os
+from functools import lru_cache
+from pathlib import Path
+import yaml
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+log = logging.getLogger("FlowDaemon")
+
+
+
+class Settings:
+    """Loads and validates application configuration."""
+    def __init__(self, config_path: str | None = None):
+        self.config_path = Path(config_path or os.getenv("CONFIG_PATH", "app/config.yaml"))
+        self.data = self._load_config()
+
+    def _load_config(self) -> dict:
+        """Parses YAML and enforces required sections."""
+        if not self.config_path.exists():
+            alt = Path(__file__).resolve().parent.parent / "config.yml"
+            if alt.exists():
+                self.config_path = alt
+            else:
+                raise FileNotFoundError(f"Config file not found: {self.config_path.resolve()}\nPlease create a valid config.yml before starting the server.")
+        try:
+            with self.config_path.open("r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            raise ValueError(f"Failed to parse YAML config: {e}")
+        if "flow_daemon" not in data:
+            raise KeyError("Missing required 'flow_daemon' section in config.yml")
+        if "database" not in data:
+            raise KeyError("Missing required 'database' section in config.yml")
+        return data
+
+    def get(self, key: str, default=None):
+        """Returns a top-level config section or default."""
+        return self.data.get(key, default)
+
+@lru_cache()
+def get_settings() -> Settings:
+    """Returns a cached Settings instance or exits on error."""
+    try:
+        return Settings()
+    except Exception as e:
+        print(f"[FATAL CONFIG ERROR] {e}")
+        raise SystemExit(1)
+
+
+
+

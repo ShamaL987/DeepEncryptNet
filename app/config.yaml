@@ -1,17 +1,23 @@
-reader:
-  csv_path: "../../AIMchat2.csv"     # absolute or relative path to your capture CSV
-  poll_interval_sec: 5
-  max_concurrent_extractors: 5
-  https_port: 443
-  require_syn_for_start: true
-
-  # column names used in your CSV
+flow_daemon:
+  csv_path: 'D:\FYP_DEV\maybe\captures\live_https.csv'
+  poll_interval_sec: 2.0
+  idle_timeout_sec: 15.0
+  active_timeout_sec: 1800.0
+  https_only: true
+  protocol_filter: ['tcp', 'udp']
+  output_dir: 'D:/FYP_DEV/app/data/extracted'
+  db_path: 'D:/FYP_DEV/app/data/flow_state.db'
   columns:
-    timestamp: "timestamp"
-    src_ip: "src_ip"
-    src_port: "src_port"
-    dst_ip: "dst_ip"
-    dst_port: "dst_port"
-    protocol: "protocol"
-    length: "length"
-    tcp_flags: "tcp_flags"   # set to null if you don't have it
+    timestamp: 'timestamp'
+    src_ip: 'src_ip'
+    src_port: 'src_port'
+    dst_ip: 'dst_ip'
+    dst_port: 'dst_port'
+    protocol: 'protocol'
+
+database:
+  host: 'localhost'
+  port: 5432
+  name: 'flows'
+  user: 'postgres'
+  password: ''

@@ -34,7 +34,8 @@ deepv4
 app/services/out_results
 app/data/extracted
 maybe
-
+build
+dist
 
 #files
 

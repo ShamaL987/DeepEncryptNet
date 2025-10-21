@@ -9,48 +9,17 @@ from collections import Counter
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-def set_seed(seed: int = 1234):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
-set_seed(1234)
-
-
-ROOT = Path("app/pipeline/deepv8")
+ROOT = Path("app/pipeline/deepv4")
 MANIFEST_PATH = ROOT / "logs" / "artifacts_manifest.json"
 
 with open(MANIFEST_PATH, "r") as f:
     manifest = json.load(f)
 
 A = manifest["artifacts"]
-
-shiftlog_params = joblib.load(ROOT / A["shiftlog_params"])
-imputer         = joblib.load(ROOT / A["imputer"])
-var_thresh      = joblib.load(ROOT / A["variance_threshold"])
-robust_scaler   = joblib.load(ROOT / A["robust_scaler"])
-std_scaler      = joblib.load(ROOT / A["standard_scaler"])
-label_encoder   = joblib.load(ROOT / A["label_encoder"])
-label_classes   = np.load(ROOT / A["label_classes"], allow_pickle=True)
-
-train_feature_cols      = json.load(open(ROOT / A["train_feature_cols"]))
-kept_features           = json.load(open(ROOT / A["kept_features"]))
-train_cols_after_ratios = json.load(open(ROOT / A["train_feature_cols_after_ratios"]))
-
-rl_cfg  = manifest["rl_config"]
-rt_cfg  = manifest["runtime"]
-
-TAU           = rt_cfg["accept_thresholds"]["TAU"]
-HARD_TAU      = rt_cfg["accept_thresholds"]["HARD_TAU"]
-MARGIN        = rt_cfg["accept_thresholds"]["MARGIN"]
-ROUTE_TAU     = rt_cfg["route_thresholds"]["ROUTE_TAU"]
-ROUTE_MARGIN  = rt_cfg["route_thresholds"]["ROUTE_MARGIN"]
-ROUTE_ENTROPY = rt_cfg["route_thresholds"]["ROUTE_ENTROPY"]
-USE_POLICY    = rt_cfg["use_policy"]
-
+RUNTIME = manifest.get("runtime", {})
+MODEL_CFG = manifest.get("model_config", {})
+RATIO_NORM_PARAMS = manifest.get("ratio_norm_params", None)
 
 class FeatureCNN_Attn(nn.Module):
     def __init__(self, n_feats, n_classes, drop=0.35, return_embedding=True):
@@ -62,18 +31,23 @@ class FeatureCNN_Attn(nn.Module):
         self.bn2   = nn.BatchNorm1d(256)
         self.attn  = nn.MultiheadAttention(embed_dim=256, num_heads=4, dropout=drop, batch_first=True)
         self.ln    = nn.LayerNorm(256)
-        self.head  = nn.Sequential(nn.Linear(256,128), nn.ReLU(inplace=True), nn.Dropout(drop))
+        self.head  = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(inplace=True),
+            nn.Dropout(drop),
+        )
         self.out   = nn.Linear(128, n_classes)
-    def forward(self, x):
+
+    def forward(self, x):          # x: (B,1,F)
         x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = x.transpose(1,2)
-        attn_out,_ = self.attn(x,x,x)
-        x = self.ln(x + attn_out)
-        x = x.mean(dim=1)
-        emb = self.head(x)
-        logits = self.out(emb)
-        return (logits, emb)
+        x = F.relu(self.bn2(self.conv2(x)))   # (B,256,F)
+        x = x.transpose(1, 2)                 # (B,F,256)
+        attn_out, _ = self.attn(x, x, x)
+        x = self.ln(x + attn_out)             # residual + norm
+        x = x.mean(dim=1)                     # (B,256)
+        emb = self.head(x)                    # (B,128)
+        logits = self.out(emb)                # (B,C)
+        return (logits, emb) if self.return_embedding else logits
 
 class TemperatureScaler(nn.Module):
     def __init__(self):
@@ -86,63 +60,158 @@ class RLDecisionLayer(nn.Module):
     def __init__(self, in_dim, hidden=32):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden),
-            nn.ReLU(),
+            nn.Linear(in_dim, hidden), nn.ReLU(),
             nn.Linear(hidden, 2)  # 0=CLASSIFY, 1=ROUTE
         )
     def forward(self, s):
         return F.log_softmax(self.net(s), dim=-1)
 
-def add_ratio_features_core(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    eps = 1e-9
-    if "duration" not in df.columns:
-        raise ValueError("‘duration’ required for ratio features.")
-    dur = df["duration"].astype(float).clip(lower=eps)
-    def safe_div(a, b): return a.astype(float) / b.astype(float).clip(lower=eps)
-    for col in df.columns:
-        if col != "duration":
-            out[f"{col}_over_duration"] = safe_div(df[col], dur)
-    if {"flowBytesPerSecond", "flowPktsPerSecond"} <= set(df.columns):
-        out["bytes_per_packet"] = safe_div(df["flowBytesPerSecond"], df["flowPktsPerSecond"])
+def get_logits(model_out):
+    return model_out[0] if isinstance(model_out, (tuple, list)) else model_out
+
+
+
+shiftlog_params = joblib.load(ROOT / A["shiftlog_params"])
+imp   = joblib.load(ROOT / A["imputer"])
+vt    = joblib.load(ROOT / A["variance_threshold"])
+robust= joblib.load(ROOT / A["robust_scaler"])
+std   = joblib.load(ROOT / A["standard_scaler"])
+kept_features      = json.load(open(ROOT / A["kept_features"]))
+corr_dropped       = json.load(open(ROOT / A["corr_dropped"]))
+train_feature_cols = json.load(open(ROOT / A["train_feature_cols"]))
+classes            = np.load(ROOT / A["label_classes"], allow_pickle=True)
+
+n_feats   = int(MODEL_CFG.get("n_feats", len(kept_features)))
+n_classes = int(MODEL_CFG.get("n_classes", len(classes)))
+
+model = FeatureCNN_Attn(n_feats=n_feats, n_classes=n_classes, drop=MODEL_CFG.get("dropout", 0.35)).to(DEVICE)
+model.load_state_dict(torch.load(ROOT / A["cnn_state_dict"], map_location=DEVICE))
+model.eval()
+
+temp = TemperatureScaler().to(DEVICE)
+temp.load_state_dict(torch.load(ROOT / A["temp_state_dict"], map_location=DEVICE))
+temp.eval()
+
+policy = RLDecisionLayer(in_dim=n_classes+3, hidden=32).to(DEVICE)
+policy.load_state_dict(torch.load(ROOT / A["rl_policy"], map_location=DEVICE))
+policy.eval()
+
+# ---------- Runtime thresholds ----------
+TAU       = float(RUNTIME.get("accept_thresholds", {}).get("TAU", 0.88))
+HARD_TAU  = float(RUNTIME.get("accept_thresholds", {}).get("HARD_TAU", 0.95))
+MARGIN    = float(RUNTIME.get("accept_thresholds", {}).get("MARGIN", 0.05))
+USE_POLICY= bool(RUNTIME.get("use_policy", True))
+
+# Route thresholds
+ROUTE_TAU      = float(RUNTIME.get("route_thresholds", {}).get("ROUTE_TAU", 0.65))
+ROUTE_MARGIN   = float(RUNTIME.get("route_thresholds", {}).get("ROUTE_MARGIN", 0.12))
+ROUTE_ENTROPY  = float(RUNTIME.get("route_thresholds", {}).get("ROUTE_ENTROPY", 1.00))
+
+
+def _safe_div(a, b):
+    """Safe element-wise division handling scalar, Series, and dict types."""
+    # Resolve b to a float (handles dicts, Series, arrays, etc.)
+    if isinstance(b, (pd.Series, np.ndarray)) and len(b) == 1:
+        b = float(b.iloc[0] if isinstance(b, pd.Series) else b[0])
+    elif isinstance(b, dict):
+        b = float(b.get("mean", 1.0))
+    elif not np.isscalar(b):
+        try:
+            b = float(np.mean(b))
+        except Exception:
+            b = 1.0
     else:
-        out["bytes_per_packet"] = 0.0
-    return out.replace([np.inf, -np.inf], 0.0).fillna(0.0)
+        b = float(b)
 
-def _to_1row_df(row_like):
-    if isinstance(row_like, pd.Series): return row_like.to_frame().T
-    if isinstance(row_like, dict): return pd.DataFrame([row_like])
-    if isinstance(row_like, pd.DataFrame): return row_like.copy()
-    raise TypeError("Input must be dict, Series, or DataFrame")
+    out = a.astype(float) / b
+    return out.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-def _apply_shiftlog(df, params):
-    df = df.reindex(columns=params["cols"])
-    arr = df.values.astype(float)
-    shift = np.array(params["shift"], dtype=float)
-    log_mask = np.array(params["log_mask"], dtype=bool)
-    arr = arr + shift
-    arr[:, log_mask] = np.log1p(np.clip(arr[:, log_mask], a_min=0.0, a_max=None))
-    return pd.DataFrame(arr, columns=params["cols"])
 
-def preprocess_df(df_in: pd.DataFrame) -> pd.DataFrame:
-    df = df_in.copy()
-    df = df.reindex(columns=train_feature_cols)
-    for c in df.columns:
-        if df[c].dtype.kind not in "biufc":
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-    df = df.replace([np.inf, -np.inf], np.nan)
-    X_sl = _apply_shiftlog(df, shiftlog_params)
-    X_imp = pd.DataFrame(imputer.transform(X_sl), columns=X_sl.columns)
-    X_vt = pd.DataFrame(var_thresh.transform(X_imp.values),
-                        columns=[train_feature_cols[i] for i in var_thresh.get_support(indices=True)])
-    X_corr = X_vt.reindex(columns=kept_features)
-    X_rat = add_ratio_features_core(X_corr)
-    X_rob = robust_scaler.transform(X_rat.values)
-    X_std = std_scaler.transform(X_rob)
-    X_fin = pd.DataFrame(X_std, columns=X_rat.columns)
-    return X_fin.reindex(columns=train_cols_after_ratios).fillna(0.0)
+def apply_ratio_normalization(df: pd.DataFrame, params: dict | None) -> pd.DataFrame:
+    """Apply the exact ratio-norm used during training (no-op if params=None)."""
+    if not params:
+        return df.copy()
 
-def build_state_from_logits(logits):
+    out = df.copy()
+    dur_ref = params["dur_ref"]
+    pps_ref = params["pps_ref"]
+    bps_ref = params["bps_ref"]
+
+    # scaling factors
+    dur_scale = _safe_div(out["duration"], dur_ref) if "duration" in out else pd.Series(1.0, index=out.index)
+    pps_scale = _safe_div(out["flowPktsPerSecond"], pps_ref) if "flowPktsPerSecond" in out else pd.Series(1.0, index=out.index)
+
+    # time-like columns normalized by duration
+    time_cols = [
+        "duration","max_active",
+        "max_biat","max_fiat","max_flowiat",
+        "mean_biat","mean_fiat","mean_flowiat",
+        "min_biat","min_fiat","min_flowiat",
+        "std_active","std_flowiat",
+        "total_biat","total_fiat",
+    ]
+    for c in time_cols:
+        if c in out.columns:
+            out[c] = _safe_div(out[c], dur_scale)
+
+    # IAT-related columns also scale w.r.t PPS
+    iat_cols = [
+        "max_biat","max_fiat","max_flowiat",
+        "mean_biat","mean_fiat","mean_flowiat",
+        "min_biat","min_fiat","min_flowiat",
+        "std_flowiat","total_biat","total_fiat",
+    ]
+    for c in iat_cols:
+        if c in out.columns:
+            out[c] = out[c] * pps_scale
+
+    # rates → ratios
+    if "flowPktsPerSecond" in out.columns:
+        out["flowPktsPerSecond"] = _safe_div(out["flowPktsPerSecond"], pps_ref)
+    if "flowBytesPerSecond" in out.columns:
+        out["flowBytesPerSecond"] = _safe_div(out["flowBytesPerSecond"], bps_ref)
+
+    return out
+
+# ---------- Preprocess utilities ----------
+def apply_shiftlog(X: pd.DataFrame, params: dict) -> pd.DataFrame:
+    assert list(X.columns) == params["cols"], "ShiftLog columns mismatch."
+    arr = X.values.astype(float) + np.array(params["shift"], dtype=float)
+    mask = np.array(params["log_mask"], dtype=bool)
+    if mask.any():
+        arr[:, mask] = np.maximum(arr[:, mask], -0.999999)
+        arr[:, mask] = np.log1p(arr[:, mask])
+    out = pd.DataFrame(arr, columns=X.columns, index=X.index)
+    return out.replace([np.inf, -np.inf], np.nan)
+
+def preprocess_row_df(x_df_raw: pd.DataFrame) -> np.ndarray:
+    # 0) ratio normalization FIRST (keeps parity with training)
+    x_df_rn = apply_ratio_normalization(x_df_raw, RATIO_NORM_PARAMS)
+
+    # 1) column align to training order (add any missing as 0.0)
+    x_df = x_df_rn.reindex(columns=train_feature_cols)
+    if x_df.isnull().any().any():
+        x_df = x_df.fillna(0.0)
+
+    # 2) Shift+Log transform
+    x_sl = apply_shiftlog(x_df, shiftlog_params)
+
+    # 3) Impute (median)
+    x_imp = pd.DataFrame(imp.transform(x_sl), columns=x_sl.columns, index=x_sl.index)
+
+    # 4) Variance threshold feature selection
+    cols_after_vt = [train_feature_cols[i] for i in vt.get_support(indices=True)]
+    x_vt = x_imp[cols_after_vt].copy()
+
+    # 5) Drop correlated features to match kept_features
+    x_corr = x_vt.drop(columns=corr_dropped, errors="ignore").reindex(columns=kept_features)
+
+    # 6) Robust -> Standard scaling (same order used in training)
+    x_sc = std.transform(robust.transform(x_corr.values))
+    return x_sc
+
+@torch.no_grad()
+def build_state_from_logits(logits: torch.Tensor):
     probs  = torch.softmax(logits, dim=1)
     top2   = torch.topk(probs, k=2, dim=1).values
     max_p  = top2[:, :1]
@@ -151,77 +220,46 @@ def build_state_from_logits(logits):
     state  = torch.cat([probs, max_p, ent, margin], dim=1)
     return state, probs, max_p, ent, margin
 
-
-n_feats = len(train_cols_after_ratios)
-n_classes = len(label_classes)
-
-model = FeatureCNN_Attn(n_feats, n_classes, drop=0.35).to(DEVICE)
-model.load_state_dict(torch.load(ROOT / "models/pytorch_tabular_cnn_best.pt", map_location=DEVICE))
-model.eval()
-
-temp = TemperatureScaler().to(DEVICE)
-temp.load_state_dict(torch.load(ROOT / "models/temp_calibrator.pt", map_location=DEVICE))
-temp.eval()
-
-policy = RLDecisionLayer(in_dim=n_classes+3).to(DEVICE)
-policy.load_state_dict(torch.load(ROOT / "RL/rl_policy_best.pt", map_location=DEVICE)["state_dict"])
-policy.eval()
-
-
 @torch.no_grad()
-def rl_decide(model, temp, policy, xb):
+def infer_one(feature_row_df: pd.DataFrame):
+    X = preprocess_row_df(feature_row_df)
+    xb = torch.from_numpy(X.astype(np.float32)).unsqueeze(1).to(DEVICE)
     out = model(xb)
-    logits = temp(out[0])
+    logits = temp(get_logits(out))
     state, probs, max_p, ent, margin = build_state_from_logits(logits)
+
     if USE_POLICY:
         logpi = policy(state)
         action = torch.argmax(logpi, dim=1)
     else:
-        action = torch.ones((xb.size(0),), dtype=torch.long, device=xb.device)
+        action = torch.ones((1,), dtype=torch.long, device=DEVICE)
+
+    # Routing
     top2 = torch.topk(probs, k=2, dim=1).values
-    m_p = top2[:, 0]
-    m_g = (top2[:, 0] - top2[:, 1]).clamp_min(0)
-    must_route = (m_p < ROUTE_TAU) | (m_g < ROUTE_MARGIN) | (ent.squeeze(1) > ROUTE_ENTROPY)
-    action[must_route] = 1
+    m_p = top2[:,0]
+    m_g = (top2[:,0] - top2[:,1])
+
+    route_mask = (m_p < ROUTE_TAU) | (m_g < ROUTE_MARGIN) | (ent.squeeze(1) > ROUTE_ENTROPY)
+    action[route_mask] = 1
+
+    # Accept if confident
     action[(m_p >= TAU) & (m_g >= MARGIN)] = 0
     action[m_p >= HARD_TAU] = 0
-    pred = probs.argmax(dim=1)
-    emb  = out[1]
-    return action, pred, probs, emb
 
-
-def predict_flow(row_like: Union[pd.Series, dict, pd.DataFrame]) -> dict:
-    """Single-row prediction (returns structured dict)."""
-    X_proc = preprocess_df(_to_1row_df(row_like))
-    xb = torch.from_numpy(X_proc.values.astype(np.float32)).unsqueeze(1).to(DEVICE)
-    action, pred, probs, emb = rl_decide(model, temp, policy, xb)
-    pred_idx = int(pred.item())
-    conf = float(probs[0, pred_idx])
-    decision = "accepted" if action.item() == 0 else "routed"
+    pred_idx = int(probs.argmax(1).item())
     return {
-        "class_label": str(label_classes[pred_idx]),
-        "class_index": pred_idx,
-        "confidence": conf,
-        "decision": decision,
-        "embedding": emb.squeeze(0).detach().cpu().numpy().tolist()
+        "pred_idx": pred_idx,
+        "pred_label": str(classes[pred_idx]),
+        "action": int(action.item()),
+        "max_p": float(m_p.item()),
+        "margin": float(m_g.item()),
+        "entropy": float(ent.item()),
+        "probs": probs.squeeze(0).cpu().numpy(),
+        "embedding": out[1].squeeze(0).cpu().numpy() if isinstance(out, (tuple, list)) else None,
     }
 
-def predict_batch(df: pd.DataFrame) -> pd.DataFrame:
-    """Batch prediction for a DataFrame of flows."""
-    X_proc = preprocess_df(df)
-    xb = torch.from_numpy(X_proc.values.astype(np.float32)).unsqueeze(1).to(DEVICE)
-    action, pred, probs, emb = rl_decide(model, temp, policy, xb)
-    conf = probs.max(dim=1).values.detach().cpu().numpy()
-    decisions = np.where(action.cpu().numpy() == 0, "accepted", "routed")
-    preds = pred.cpu().numpy()
-    labels = [label_classes[p] for p in preds]
-    result_df = pd.DataFrame({
-        "pred_class": labels,
-        "pred_index": preds,
-        "confidence": conf,
-        "decision": decisions
-    })
-    result_df["embedding"] = [e.detach().cpu().numpy().tolist() for e in emb]
-    return result_df
+def predict_one(df: pd.DataFrame):
 
+    out = infer_one(df)
+    return out
 

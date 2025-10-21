@@ -13,7 +13,6 @@ __pycache__/
 *.onnx
 *.npz
 *.npy
-data/
 datasets/
 captures/
 notebooks/.ipynb_checkpoints/
@@ -31,10 +30,14 @@ Thumbs.db
 
 data-extra-chat-brows-ft-p2p
 deepv8
+deepv4
 app/services/out_results
+app/data/extracted
+
 
 #files
 
 deepv8.ipynb
 deepv8_predictor.ipynb
+
 

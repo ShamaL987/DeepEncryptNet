@@ -1,10 +1,10 @@
 flow_daemon:
-  csv_path: 'D:/FYP_DEV/AIMchat2.csv'
+  csv_path: 'D:\FYP_DEV\maybe\captures\live_https.csv'
   poll_interval_sec: 2.0
   idle_timeout_sec: 15.0
   active_timeout_sec: 1800.0
-  https_only: false
-  protocol_filter: ['TCP', 'UDP']
+  https_only: true
+  protocol_filter: ['tcp', 'udp']
   output_dir: 'D:/FYP_DEV/app/data/extracted'
   db_path: 'D:/FYP_DEV/app/data/flow_state.db'
   columns:

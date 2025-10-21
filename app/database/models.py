@@ -6,7 +6,7 @@ from sqlalchemy import (
     Integer,
     DateTime,
     ForeignKey,
-    func
+    func, JSON
 )
 from sqlalchemy.orm import relationship, Session, declared_attr
 
@@ -119,11 +119,14 @@ class PredictionResult(BaseModel):
         unique=True,
         index=True,
     )
+    predicted_class = Column(String, nullable=False)
+    pred_idx = Column(Integer, nullable=False, default=-1)
+    probs = Column(JSON, nullable=False)
+    embedding = Column(JSON, nullable=True)
 
-    predicted_class = Column(String, nullable=False)  # e.g., "VOIP", "CHAT"
-    action = Column(Integer, nullable=False)           # 0=Classify, 1=Route
 
-    # Confidence diagnostics
+    action = Column(Integer, nullable=False)
+
     max_p = Column(Float, nullable=False)
     margin = Column(Float, nullable=False)
     entropy = Column(Float, nullable=False)

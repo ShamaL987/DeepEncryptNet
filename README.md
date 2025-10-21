@@ -18,6 +18,6 @@ Endpoints:
 
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
- 
-
 docker-compose up -d
+
+pyinstaller --onefile --console --uac-admin main.py

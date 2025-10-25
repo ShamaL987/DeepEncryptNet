@@ -1,5 +1,5 @@
 flow_daemon:
-  csv_path: 'D:\FYP_DEV\maybe\captures\live_https.csv'
+  csv_path: 'D:\FYP_DEV\tracker-exe\captures\live_https.csv'
   poll_interval_sec: 2.0
   idle_timeout_sec: 15.0
   active_timeout_sec: 1800.0

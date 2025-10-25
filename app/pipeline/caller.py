@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Dict, Any
 import pandas as pd
-from app.pipeline.helpers import predict_one
+from app.pipeline.helpers import infer_one
 from app.pipeline.loader import get_flow_features_df
 from app.database.db import session_scope
 from app.database.models import PredictionResult
@@ -24,7 +24,7 @@ def hybrid_pipeline(flow_id: str) -> Dict[str, Any]:
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame([df])
 
-    out = predict_one(df)
+    out = infer_one(df)
 
     predicted_class = str(out.get("pred_label", ""))
     pred_idx = int(out.get("pred_idx", -1))

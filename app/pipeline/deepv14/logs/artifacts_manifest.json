@@ -1,0 +1,86 @@
+{
+  "versions": {
+    "torch": "2.5.1+cu121",
+    "numpy": "2.3.3",
+    "pandas": "2.3.2",
+    "imblearn": "imblearn"
+  },
+  "device": "cuda",
+  "artifacts": {
+    "cnn_state_dict": "models/cnn_final.pt",
+    "temp_state_dict": "models/temp_calibrator.pt",
+    "rl_policy": "models/rl_policy.pt",
+    "label_encoder": "label_encoder.joblib",
+    "label_classes": "label_classes.npy",
+    "shiftlog_params": "scalers/shiftlog_params.joblib",
+    "imputer": "scalers/imputer_median.joblib",
+    "variance_threshold": "scalers/variance_threshold.joblib",
+    "robust_scaler": "scalers/robust_scaler.joblib",
+    "standard_scaler": "scalers/standard_scaler.joblib",
+    "kept_features": "kept_features.json",
+    "corr_dropped": "corr_dropped.json",
+    "train_feature_cols": "logs/train_feature_cols.json",
+    "train_history": "logs/train_history.csv",
+    "split_idx_train": "logs/split_idx_train.npy",
+    "split_idx_val": "logs/split_idx_val.npy",
+    "split_idx_test": "logs/split_idx_test.npy"
+  },
+  "notes": {
+    "resampling": "SMOTE",
+    "loss": "FocalLoss(gamma=1.5, alpha=class_weights)"
+  },
+  "rl_config": {
+    "reward_table": {
+      "R_TP": 1.5,
+      "R_FP": -2.5,
+      "R_RH": 0.4,
+      "R_RE": -1.5
+    },
+    "coverage": {
+      "target_coverage": 0.7187722040642319,
+      "lambda_cov": 2.5,
+      "penalty": "linear"
+    },
+    "splits": {
+      "rl_train": "train",
+      "rl_val": "val"
+    },
+    "epochs": 10
+  },
+  "runtime": {
+    "accept_thresholds": {
+      "TAU": 0.8,
+      "MARGIN": 0.0,
+      "HARD_TAU": 0.95
+    },
+    "route_thresholds": {
+      "ENTROPY_MAX": Infinity,
+      "ROUTE_TAU": 0.75,
+      "ROUTE_MARGIN": 0.0,
+      "ROUTE_ENTROPY": Infinity
+    },
+    "use_policy": true,
+    "hard_gate_after_policy": true
+  },
+  "model_config": {
+    "arch": "FeatureCNN_Attn",
+    "widths": [
+      128,
+      256
+    ],
+    "attention": {
+      "embed_dim": 256,
+      "num_heads": 4,
+      "dropout": 0.35
+    },
+    "embedding_dim": 128,
+    "dropout": 0.35,
+    "n_feats": 17,
+    "n_classes": 7
+  },
+  "resampling_detail": {
+    "method": "SMOTE",
+    "cap_per_class_preview": 10000,
+    "random_state": 42
+  }
+}

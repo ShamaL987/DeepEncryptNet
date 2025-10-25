@@ -1,0 +1,8 @@
+[
+  "max_idle",
+  "mean_active",
+  "mean_idle",
+  "min_active",
+  "min_idle",
+  "std_idle"
+]

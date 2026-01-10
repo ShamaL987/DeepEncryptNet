@@ -26,7 +26,6 @@ Thumbs.db
 
 
 #dir
-
 data-extra-chat-brows-ft-p2p
 app/services/out_results
 app/data/extracted
@@ -35,8 +34,31 @@ build
 dist
 
 #files
-
 deepv8.ipynb
 deepv8_predictor.ipynb
+
+# Logs
+frontend/logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
+
+node_modules
+dist-ssr
+frontend/node_modules
+frontend/dist
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 

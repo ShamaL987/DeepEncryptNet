@@ -68,7 +68,8 @@ class FlowStats(BaseModel):
         primary_key=True,
     )
 
-    # --- 17 core statistical features ---
+    start_time = Column(DateTime)
+    end_time = Column(DateTime)
     duration = Column(Float)
     flowBytesPerSecond = Column(Float)
     flowPktsPerSecond = Column(Float)
@@ -91,7 +92,6 @@ class FlowStats(BaseModel):
     total_biat = Column(Float)
     total_fiat = Column(Float)
 
-    # One-to-one relationship with prediction
     prediction = relationship(
         "PredictionResult",
         back_populates="flow",

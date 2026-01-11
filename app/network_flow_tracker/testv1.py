@@ -4,16 +4,14 @@ from app.network_flow_tracker.new_v1 import PacketStreamDivider
 
 
 def main() -> None:
-    base_dir = Path("tracker-exe")
-
-    packet_csv = base_dir / "captures" / "live_https.csv"
-    output_dir = base_dir / "streams"
-    offset_file = base_dir / "offset.json"
+    tracker_dir = Path("D:/FYP_DEV/tracker-exe")
+    working_dir = Path.cwd()
 
     divider = PacketStreamDivider(
-        packet_csv=packet_csv,
-        output_dir=output_dir,
-        offset_store=offset_file,
+        packet_csv=tracker_dir / "captures" / "live_https_v1.csv",
+        output_dir=working_dir / "streams",
+        offset_file=working_dir / "offset.json",
+        start_mode="replay",  # "replay" or "live"
         idle_timeout_sec=30.0,
         poll_interval_sec=1.0,
     )

@@ -47,6 +47,8 @@ def tail_loop(cfg, stop_event: Optional[threading.Event] = None):
                     f.seek(last_off)
                     reader = csv.DictReader(f, fieldnames=header_cache if last_off > 0 else None)
                     for row in reader:
+                        log.info(row.get("timestamp"))
+                        print(row.get("timestamp"))
                         if row.get("timestamp") == "timestamp":
                             continue
                         futures.append(executor.submit(tracker.add_packet, row))

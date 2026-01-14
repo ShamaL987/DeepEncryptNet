@@ -8,7 +8,7 @@ def main() -> None:
     working_dir = Path.cwd()
 
     divider = PacketStreamDivider(
-        packet_csv=tracker_dir / "captures" / "live_https_v1.csv",
+        packet_csv=working_dir / "live_https_v1.csv",
         output_dir=working_dir / "streams",
         offset_file=working_dir / "offset.json",
         start_mode="replay",  # "replay" or "live"

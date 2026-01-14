@@ -108,8 +108,16 @@ class PacketStreamDivider:
         header: list[str],
         timestamp: float,
     ) -> ActiveStream:
-        if key in self.active_streams:
-            return self.active_streams[key]
+        existing = self.active_streams.get(key)
+
+        if existing:
+            if (timestamp - existing.last_seen_ts) > self.idle_timeout_sec:
+                existing.writer.close()
+                print(f"[STREAM-SPLIT] {existing.stream_id} | idle gap")
+                del self.active_streams[key]
+
+            else:
+                return existing
 
         stream_id = self._new_stream_id()
         writer = StreamFileWriter(stream_id, self.output_dir, header)
@@ -119,22 +127,8 @@ class PacketStreamDivider:
         print(f"[STREAM-CREATE] {stream_id} | {key}")
         return stream
 
-    def _expire_idle_streams(self, now_ts: float) -> None:
-        expired = [
-            key
-            for key, stream in self.active_streams.items()
-            if (now_ts - stream.last_seen_ts) > self.idle_timeout_sec
-        ]
-
-        for key in expired:
-            stream = self.active_streams.pop(key)
-            stream.writer.close()
-
     def run(self) -> None:
-        last_offset = (
-            0 if self.start_mode == "replay"
-            else self.offset_store.load()
-        )
+        last_offset = 0 if self.start_mode == "replay" else self.offset_store.load()
 
         while True:
             if not self.packet_csv.exists():
@@ -184,5 +178,4 @@ class PacketStreamDivider:
                 if processed:
                     print(f"[READ] {processed} packets")
 
-            self._expire_idle_streams(time.time())
             time.sleep(self.poll_interval_sec)

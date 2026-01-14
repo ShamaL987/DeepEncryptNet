@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.network_flow_tracker.new_v1 import PacketStreamDivider
+from app.network_flow_tracker.flow_extractor import PacketStreamDivider
 
 
 def main() -> None:
@@ -11,9 +11,10 @@ def main() -> None:
         packet_csv=working_dir / "live_https_v1.csv",
         output_dir=working_dir / "streams",
         offset_file=working_dir / "offset.json",
-        start_mode="replay",  # "replay" or "live"
-        idle_timeout_sec=30.0,
+        start_mode="live",  # "replay" or "live"
+        idle_timeout_sec=10.0,
         poll_interval_sec=1.0,
+        extract_features=True,
     )
 
     divider.run()

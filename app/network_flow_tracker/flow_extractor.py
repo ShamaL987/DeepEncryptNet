@@ -9,6 +9,7 @@ from typing import Dict, Tuple, Optional
 from app.network_flow_tracker.stream_feature_extractor import StreamFeatureExtractor
 from app.pipeline.prediction_queue import PredictionQueue
 
+
 FlowKey = Tuple[str, str, str, str, str]
 
 
@@ -56,13 +57,16 @@ class ActiveStream:
         self,
         stream_id: str,
         writer: StreamFileWriter,
+        start_ts: float,
         last_seen_ts: float,
         last_seen_wall: float,
     ):
         self.stream_id = stream_id
         self.writer = writer
+        self.start_ts = start_ts
         self.last_seen_ts = last_seen_ts
         self.last_seen_wall = last_seen_wall
+        self.packet_count = 0
         self.features_extracted = False
 
 
@@ -77,21 +81,25 @@ class PacketStreamDivider:
         prediction_queue: PredictionQueue,
         idle_timeout_sec: float = 30.0,
         poll_interval_sec: float = 1.0,
+        max_packets: int = 100,
+        max_duration_sec: float = 20.0,
     ):
         self.packet_csv = packet_csv
         self.output_dir = output_dir
         self.offset_store = OffsetStore(offset_file)
         self.start_mode = start_mode
         self.extract_features = extract_features
+        self.prediction_queue = prediction_queue
+
         self.idle_timeout_sec = idle_timeout_sec
         self.poll_interval_sec = poll_interval_sec
+        self.max_packets = max_packets
+        self.max_duration_sec = max_duration_sec
 
         self.active_streams: Dict[FlowKey, ActiveStream] = {}
         self.stream_counter = 0
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.enable_prediction = True
-        self.prediction_queue = prediction_queue
 
         if self.start_mode == "replay":
             self.offset_store.reset()
@@ -99,7 +107,6 @@ class PacketStreamDivider:
         self.extractor = StreamFeatureExtractor(idle_threshold=1.0)
 
         print(f"[INIT] Mode={self.start_mode}", flush=True)
-        print(f"[INIT] ExtractFeatures={self.extract_features}", flush=True)
         print(f"[INIT] Packet CSV={self.packet_csv}", flush=True)
         print(f"[INIT] Streams Dir={self.output_dir}", flush=True)
 
@@ -119,41 +126,43 @@ class PacketStreamDivider:
     @staticmethod
     def _parse_epoch_timestamp(value: Optional[str]) -> Optional[float]:
         try:
-            if value is None:
-                return None
-            ts = float(value.strip())
+            ts = float(value)
             return ts if ts > 0 else None
-        except (ValueError, TypeError):
+        except Exception:
             return None
 
     def _new_stream_id(self) -> str:
         self.stream_counter += 1
         return f"stream_{self.stream_counter:06d}"
 
+    def _should_split(self, stream: ActiveStream, ts: float) -> bool:
+        if (ts - stream.last_seen_ts) > self.idle_timeout_sec:
+            return True
+        if stream.packet_count >= self.max_packets:
+            return True
+        if (ts - stream.start_ts) >= self.max_duration_sec:
+            return True
+        return False
+
     def _finalize_stream(self, stream: ActiveStream) -> None:
         stream.writer.close()
 
         if self.extract_features and not stream.features_extracted:
-            features = self.extractor.extract(stream.writer.path, stream.stream_id)
-            if features:
-                print(f"[FEATURES] extracted for {stream.stream_id}", flush=True)
-                print(features, flush=True)
+            self.extractor.extract(stream.writer.path, stream.stream_id)
             stream.features_extracted = True
-            if self.enable_prediction:
-                self.prediction_queue.enqueue(stream.stream_id)
+            self.prediction_queue.enqueue(stream.stream_id)
 
     def _get_or_create_stream(
         self,
         key: FlowKey,
         header: list[str],
-        timestamp: float,
+        ts: float,
     ) -> ActiveStream:
         existing = self.active_streams.get(key)
         now_wall = time.time()
 
         if existing:
-            if (timestamp - existing.last_seen_ts) > self.idle_timeout_sec:
-                print(f"[STREAM-SPLIT] {existing.stream_id}", flush=True)
+            if self._should_split(existing, ts):
                 self._finalize_stream(existing)
                 del self.active_streams[key]
             else:
@@ -161,22 +170,20 @@ class PacketStreamDivider:
 
         stream_id = self._new_stream_id()
         writer = StreamFileWriter(stream_id, self.output_dir, header)
-        stream = ActiveStream(stream_id, writer, timestamp, now_wall)
+        stream = ActiveStream(stream_id, writer, ts, ts, now_wall)
         self.active_streams[key] = stream
 
         print(f"[STREAM-CREATE] {stream_id} | {key}", flush=True)
         return stream
 
-    def _expire_idle_streams_wallclock(self) -> None:
+    def _expire_wallclock_streams(self) -> None:
         now = time.time()
         expired = [
-            key for key, stream in self.active_streams.items()
-            if (now - stream.last_seen_wall) > self.idle_timeout_sec
+            key for key, s in self.active_streams.items()
+            if (now - s.last_seen_wall) > self.idle_timeout_sec
         ]
-
         for key in expired:
             stream = self.active_streams.pop(key)
-            print(f"[STREAM-IDLE-CLOSE] {stream.stream_id}", flush=True)
             self._finalize_stream(stream)
 
     def run(self, stop_event) -> None:
@@ -184,15 +191,12 @@ class PacketStreamDivider:
 
         while True:
             if stop_event and stop_event.is_set():
-                print("[FLOW] Stop signal received", flush=True)
                 break
 
             if self.start_mode == "live":
-                self._expire_idle_streams_wallclock()
-                # print(f"[LIVE-HEARTBEAT] {time.time():.2f}", flush=True)
+                self._expire_wallclock_streams()
 
             if not self.packet_csv.exists():
-                print("[WAIT] CSV not found", flush=True)
                 time.sleep(self.poll_interval_sec)
                 continue
 
@@ -201,22 +205,19 @@ class PacketStreamDivider:
                 reader = csv.reader(f)
 
                 header = next(reader, None)
-                if header is None:
+                if not header:
                     time.sleep(self.poll_interval_sec)
                     continue
 
                 processed = 0
 
                 for row in reader:
-                    if not row:
-                        continue
-
                     record = dict(zip(header, row))
-                    timestamp = self._parse_epoch_timestamp(record.get("timestamp"))
-                    if timestamp is None:
+                    ts = self._parse_epoch_timestamp(record.get("timestamp"))
+                    if ts is None:
                         continue
 
-                    flow_key = self.canonical_flow_key(
+                    key = self.canonical_flow_key(
                         record["src_ip"],
                         record["src_port"],
                         record["dst_ip"],
@@ -224,24 +225,20 @@ class PacketStreamDivider:
                         record["transport"],
                     )
 
-                    stream = self._get_or_create_stream(flow_key, header, timestamp)
-
+                    stream = self._get_or_create_stream(key, header, ts)
                     stream.writer.append(row)
-                    stream.last_seen_ts = timestamp
+                    stream.packet_count += 1
+                    stream.last_seen_ts = ts
                     stream.last_seen_wall = time.time()
                     processed += 1
 
                 new_offset = f.tell()
                 self.offset_store.save(new_offset)
 
-                if processed:
-                    print(f"[READ] {processed} packets", flush=True)
-
                 if self.start_mode == "replay" and new_offset == last_offset:
-                    for stream in list(self.active_streams.values()):
-                        self._finalize_stream(stream)
+                    for s in list(self.active_streams.values()):
+                        self._finalize_stream(s)
                     self.active_streams.clear()
-                    print("[REPLAY] All streams finalized", flush=True)
                     return
 
                 last_offset = new_offset

@@ -55,7 +55,7 @@ TSHARK_FIELDS = [
 
 class CapturePaths:
     def __init__(self, base_dir: Path):
-        self.base = base_dir / "captures"
+        self.base = base_dir /"files"/"captures"
         self.writing = self.base / "writing"
         self.ready = self.base / "ready"
 

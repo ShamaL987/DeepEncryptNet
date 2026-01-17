@@ -12,7 +12,7 @@ class StreamFeatureExtractor:
     def __init__(self, idle_threshold: float = 1.0):
         self.idle_threshold = idle_threshold
 
-    def extract(self, stream_csv: Path, stream_id: str) -> Optional[Dict[str, float | str | None]]:
+    def extract(self, stream_csv: Path, stream_id: str, batch_id: str) -> Optional[Dict[str, float | str | None]]:
         df = pd.read_csv(stream_csv)
 
         if df.empty or len(df) < 1:
@@ -52,7 +52,7 @@ class StreamFeatureExtractor:
         max_active, std_active = self._active_stats(flow_iat)
 
         flow_stats = FlowStats(
-            flow_id=stream_id,
+            flow_id=stream_id + batch_id,
             start_time=float(start_time),
             end_time=float(end_time),
             duration=duration,

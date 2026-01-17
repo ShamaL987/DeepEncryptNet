@@ -131,7 +131,7 @@ class PacketStreamDivider:
         stream.writer.close()
 
         if self.extract_features and not stream.features_extracted:
-            features = self.extractor.extract(stream.writer.path)
+            features = self.extractor.extract(stream.writer.path, stream.stream_id)
             if features:
                 print(f"[FEATURES] extracted for {stream.stream_id}", flush=True)
                 print(features, flush=True)
@@ -184,7 +184,7 @@ class PacketStreamDivider:
 
             if self.start_mode == "live":
                 self._expire_idle_streams_wallclock()
-                print(f"[LIVE-HEARTBEAT] {time.time():.2f}", flush=True)
+                # print(f"[LIVE-HEARTBEAT] {time.time():.2f}", flush=True)
 
             if not self.packet_csv.exists():
                 print("[WAIT] CSV not found", flush=True)

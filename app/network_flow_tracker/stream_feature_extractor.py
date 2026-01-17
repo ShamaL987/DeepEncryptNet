@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import pandas as pd
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List
+
+from app.database.db import session_scope
+from app.database.models import FlowStats
 
 
 class StreamFeatureExtractor:
     def __init__(self, idle_threshold: float = 1.0):
         self.idle_threshold = idle_threshold
 
-    def extract(self, stream_csv: Path) -> Optional[Dict[str, float | str | None]]:
+    def extract(self, stream_csv: Path, stream_id: str) -> Optional[Dict[str, float | str | None]]:
         df = pd.read_csv(stream_csv)
 
         if df.empty or len(df) < 1:
@@ -47,6 +50,31 @@ class StreamFeatureExtractor:
         b_s = self._stats(biat)
 
         max_active, std_active = self._active_stats(flow_iat)
+
+        flow_stats = FlowStats(
+            flow_id=stream_id,
+            start_time=float(start_time),
+            end_time=float(end_time),
+            duration=duration,
+            flowBytesPerSecond=flowBytesPerSecond,
+            flowPktsPerSecond=flowPktsPerSecond,
+            max_active=max_active,
+            std_active=std_active,
+            max_biat=b_s["max"],
+            mean_biat=b_s["mean"],
+            min_biat=b_s["min"],
+            total_biat=b_s["total"],
+            max_fiat=f_s["max"],
+            mean_fiat=f_s["mean"],
+            min_fiat=f_s["min"],
+            total_fiat=f_s["total"],
+            max_flowiat=flow_s["max"],
+            mean_flowiat=flow_s["mean"],
+            min_flowiat=flow_s["min"],
+            std_flowiat=flow_s["std"]
+        )
+        with session_scope() as db:
+            flow_stats.save(db)
 
         return {
             "start_time": pd.to_datetime(start_time, unit="s").isoformat(),

@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database.init_db import ensure_schema
-import app.database.event_listeners  # noqa
 from app.settings import get_settings, log
 from app.flow_daemon import run_flow_daemon
 

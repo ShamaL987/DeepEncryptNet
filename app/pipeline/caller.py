@@ -39,32 +39,22 @@ def hybrid_pipeline(flow_id: str) -> Dict[str, Any]:
         existing = db.query(PredictionResult).filter(PredictionResult.flow_id == flow_id).first()
 
         if existing:
-            existing.pred_idx = pred_idx
-            existing.predicted_class = predicted_class
-            existing.action = action_val
-            existing.max_p = max_p
-            existing.margin = margin
-            existing.entropy = entropy
-            existing.probs = probs_list
-            existing.embedding = embed_list
-            existing.model_version = out.get("model_version")
-            existing.manifest_path = out.get("manifest_path")
-            existing.save(db)
-        else:
-            record = PredictionResult(
-                flow_id=flow_id,
-                pred_idx=pred_idx,
-                predicted_class=predicted_class,
-                action=action_val,
-                max_p=max_p,
-                margin=margin,
-                entropy=entropy,
-                probs=probs_list,
-                embedding=embed_list,
-                model_version=out.get("model_version"),
-                manifest_path=out.get("manifest_path"),
-            )
-            record.save(db)
+            return existing.prediction_result
+
+        record = PredictionResult(
+            flow_id=flow_id,
+            pred_idx=pred_idx,
+            predicted_class=predicted_class,
+            action=action_val,
+            max_p=max_p,
+            margin=margin,
+            entropy=entropy,
+            probs=probs_list,
+            embedding=embed_list,
+            model_version=out.get("model_version"),
+            manifest_path=out.get("manifest_path"),
+        )
+        record.save(db)
 
     return {
         "flow_id": flow_id,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional
 
 from app.network_flow_tracker.stream_feature_extractor import StreamFeatureExtractor
-
+from app.pipeline.prediction_queue import PredictionQueue
 
 FlowKey = Tuple[str, str, str, str, str]
 
@@ -74,6 +74,7 @@ class PacketStreamDivider:
         offset_file: Path,
         start_mode: str,
         extract_features: bool,
+        prediction_queue: PredictionQueue,
         idle_timeout_sec: float = 30.0,
         poll_interval_sec: float = 1.0,
     ):
@@ -89,6 +90,8 @@ class PacketStreamDivider:
         self.stream_counter = 0
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.enable_prediction = True
+        self.prediction_queue = prediction_queue
 
         if self.start_mode == "replay":
             self.offset_store.reset()
@@ -136,6 +139,8 @@ class PacketStreamDivider:
                 print(f"[FEATURES] extracted for {stream.stream_id}", flush=True)
                 print(features, flush=True)
             stream.features_extracted = True
+            if self.enable_prediction:
+                self.prediction_queue.enqueue(stream.stream_id)
 
     def _get_or_create_stream(
         self,

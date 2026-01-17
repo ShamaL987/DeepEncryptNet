@@ -1,5 +1,5 @@
 flow_daemon:
-  csv_path: "D:/FYP_DEV/app/network_flow_tracker/live_https_v1.csv"
+  csv_path: "D:/FYP_DEV/app/network_flow_tracker/tests/live_https_v1.csv"
   output_dir: "D:/FYP_DEV/app/network_flow_tracker/streams"
   offset_file: "D:/FYP_DEV/app/network_flow_tracker/offset.json"
   mode: "live"

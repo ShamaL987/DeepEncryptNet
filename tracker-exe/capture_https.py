@@ -3,15 +3,25 @@ from __future__ import annotations
 import csv
 import platform
 import shutil
-import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
+
+# =========================
+# CONFIGURATION
+# =========================
 
 BPF_FILTER = "tcp port 443 or udp port 443"
 SCHEMA_VERSION = "v1"
+
+ROTATE_EVERY_SECONDS = 30        # batch duration
+ROTATE_MAX_PACKETS = 100        # batch size
+
+FIELD_SEPARATOR = "\t"
+
 
 CSV_COLUMNS = [
     "timestamp",
@@ -38,27 +48,31 @@ TSHARK_FIELDS = [
     "frame.len",
 ]
 
-FIELD_SEPARATOR = "\t"
 
+# =========================
+# PATHS
+# =========================
 
 class CapturePaths:
     def __init__(self, base_dir: Path):
-        self.capture_dir = base_dir / "captures"
-        self.output_csv = self.capture_dir / f"live_https_{SCHEMA_VERSION}.csv"
+        self.base = base_dir / "captures"
+        self.writing = self.base / "writing"
+        self.ready = self.base / "ready"
 
     def initialize(self) -> None:
-        self.capture_dir.mkdir(parents=True, exist_ok=True)
-        if not self.output_csv.exists():
-            with self.output_csv.open("w", newline="", encoding="utf-8") as f:
-                csv.writer(f).writerow(CSV_COLUMNS)
+        self.writing.mkdir(parents=True, exist_ok=True)
+        self.ready.mkdir(parents=True, exist_ok=True)
 
+# =========================
+# TSHARK DISCOVERY
+# =========================
 
 class TsharkLocator:
     @staticmethod
     def locate() -> Path:
-        env_path = shutil.which("tshark")
-        if env_path:
-            return Path(env_path)
+        env = shutil.which("tshark")
+        if env:
+            return Path(env)
 
         system = platform.system().lower()
         candidates = {
@@ -76,28 +90,33 @@ class TsharkLocator:
             ],
         }.get(system, [])
 
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
+        for path in candidates:
+            if path.exists():
+                return path
 
         raise RuntimeError("tshark executable not found")
 
+
+# =========================
+# INTERFACE RESOLUTION
+# =========================
 
 class NetworkInterfaceResolver:
     def __init__(self, tshark_path: Path):
         self.tshark_path = tshark_path
 
     def list_interfaces(self) -> list[tuple[int, str]]:
-        output = subprocess.check_output(
+        out = subprocess.check_output(
             [self.tshark_path, "-D"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
+
         interfaces = []
-        for line in output.splitlines():
+        for line in out.splitlines():
             try:
-                index, name = line.split(".", 1)
-                interfaces.append((int(index.strip()), name.strip()))
+                idx, name = line.split(".", 1)
+                interfaces.append((int(idx.strip()), name.strip()))
             except ValueError:
                 continue
         return interfaces
@@ -107,12 +126,9 @@ class NetworkInterfaceResolver:
             proc = subprocess.run(
                 [
                     self.tshark_path,
-                    "-i",
-                    str(index),
-                    "-f",
-                    BPF_FILTER,
-                    "-a",
-                    "duration:1",
+                    "-i", str(index),
+                    "-f", BPF_FILTER,
+                    "-a", "duration:1",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -127,9 +143,9 @@ class NetworkInterfaceResolver:
         if not interfaces:
             raise RuntimeError("No network interfaces found")
 
-        print("\nAvailable network interfaces:")
-        for index, name in interfaces:
-            print(f"{index}. {name}")
+        print("\nAvailable interfaces:")
+        for idx, name in interfaces:
+            print(f"{idx}. {name}")
 
         while True:
             choice = input("\nSelect interface number: ").strip()
@@ -137,39 +153,42 @@ class NetworkInterfaceResolver:
                 print("Invalid input")
                 continue
 
-            index = int(choice)
-            if not any(i == index for i, _ in interfaces):
-                print("Interface not in list")
+            idx = int(choice)
+            if not any(i == idx for i, _ in interfaces):
+                print("Not in list")
                 continue
 
-            if self.validate(index):
-                print(f"[CAPTURE] Selected interface {index}")
-                return index
+            if self.validate(idx):
+                print(f"[CAPTURE] Using interface {idx}")
+                return idx
 
-            print("Selected interface cannot be used")
+            print("Interface not usable")
 
+
+# =========================
+# TSHARK COMMAND
+# =========================
 
 class TsharkCommandFactory:
     @staticmethod
     def build(tshark_path: Path, interface_index: int) -> list[str]:
-        command = [
+        cmd = [
             str(tshark_path),
-            "-i",
-            str(interface_index),
-            "-f",
-            BPF_FILTER,
+            "-i", str(interface_index),
+            "-f", BPF_FILTER,
             "-l",
-            "-T",
-            "fields",
-            "-E",
-            f"separator={FIELD_SEPARATOR}",
-            "-E",
-            "header=n",
+            "-T", "fields",
+            "-E", f"separator={FIELD_SEPARATOR}",
+            "-E", "header=n",
         ]
-        for field in TSHARK_FIELDS:
-            command.extend(["-e", field])
-        return command
+        for f in TSHARK_FIELDS:
+            cmd.extend(["-e", f])
+        return cmd
 
+
+# =========================
+# PACKET PARSER
+# =========================
 
 class PacketParser:
     @staticmethod
@@ -179,17 +198,13 @@ class PacketParser:
             return None
 
         (
-            timestamp,
-            ipv4_src,
-            ipv6_src,
-            tcp_src,
-            udp_src,
-            ipv4_dst,
-            ipv6_dst,
-            tcp_dst,
-            udp_dst,
-            app_protocol,
-            packet_length,
+            ts,
+            ipv4_src, ipv6_src,
+            tcp_src, udp_src,
+            ipv4_dst, ipv6_dst,
+            tcp_dst, udp_dst,
+            proto,
+            length,
         ) = parts
 
         src_ip = ipv4_src or ipv6_src
@@ -205,85 +220,118 @@ class PacketParser:
             return None
 
         return [
-            timestamp,
+            ts,
             src_ip,
             src_port,
             dst_ip,
             dst_port,
             transport,
-            app_protocol,
-            packet_length,
+            proto,
+            length,
         ]
 
 
-class BufferedPacketWriter:
-    def __init__(self, output_csv: Path, flush_interval: int = 50):
-        self.output_csv = output_csv
-        self.flush_interval = flush_interval
-        self.buffer: list[list[str]] = []
-        self.file = self.output_csv.open("a", newline="", encoding="utf-8")
+# =========================
+# ROTATING CSV WRITER
+# =========================
+
+class RotatingPacketWriter:
+    def __init__(
+        self,
+        paths: CapturePaths,
+        rotate_interval_sec: int = 30
+    ):
+        self.paths = paths
+        self.rotate_interval_sec = rotate_interval_sec
+
+        self.batch_id = 0
+        self.packet_count = 0
+        self.start_time = time.time()
+
+        self.file = None
+        self.writer = None
+        self.current_tmp = None
+
+        self._open_new_batch()
+
+    def _open_new_batch(self) -> None:
+        if self.file:
+            self._close_batch()
+
+        self.batch_id += 1
+        self.packet_count = 0
+        self.start_time = time.time()
+
+        self.current_tmp = self.paths.writing / f"batch_{self.batch_id:05d}.tmp"
+        self.file = self.current_tmp.open("w", newline="", encoding="utf-8")
         self.writer = csv.writer(self.file)
+        self.writer.writerow([
+            "timestamp",
+            "src_ip",
+            "src_port",
+            "dst_ip",
+            "dst_port",
+            "transport",
+            "app_protocol",
+            "packet_length",
+        ])
 
-    def write_row(self, row: list[str]) -> None:
-        self.buffer.append(row)
-        print("[PACKET]", row)
-
-        if len(self.buffer) >= self.flush_interval:
-            self.flush()
-
-    def flush(self) -> None:
-        if self.buffer:
-            self.writer.writerows(self.buffer)
-            self.file.flush()
-            self.buffer.clear()
-
-    def close(self) -> None:
-        self.flush()
+    def _close_batch(self) -> None:
+        self.file.flush()
         self.file.close()
 
+        final_csv = self.paths.ready / self.current_tmp.with_suffix(".csv").name
+        self.current_tmp.replace(final_csv)
+
+        print(f"[CAPTURE] Closed batch → {final_csv}")
+
+    def write_row(self, row: list[str]) -> None:
+        now = time.time()
+        self.writer.writerow(row)
+        self.packet_count += 1
+
+        if (
+           (now - self.start_time) >= self.rotate_interval_sec
+        ):
+            self._open_new_batch()
+
+    def close(self) -> None:
+        if self.file:
+            self._close_batch()
+
+# =========================
+# CAPTURE SESSION
+# =========================
 
 class CaptureSession:
-    def __init__(self, command: list[str], writer: BufferedPacketWriter):
+    def __init__(self, command: list[str], writer: RotatingPacketWriter):
         self.command = command
         self.writer = writer
-        self.process: Optional[subprocess.Popen[str]] = None
         self.running = True
 
     def start(self) -> None:
-        print("[CAPTURE] Starting capture")
-        self.process = subprocess.Popen(
+        proc = subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.DEVNULL,
             text=True,
             bufsize=1,
         )
 
-        signal.signal(signal.SIGINT, self.stop)
-        signal.signal(signal.SIGTERM, self.stop)
-
         try:
-            assert self.process.stdout
-            for line in self.process.stdout:
-                if not self.running:
-                    break
+            for line in proc.stdout:
                 parsed = PacketParser.parse(line)
                 if parsed:
                     self.writer.write_row(parsed)
         finally:
-            self.stop()
+            self.writer.close()
+            proc.terminate()
 
-    def stop(self, *_):
-        if not self.running:
-            return
-        print("[CAPTURE] Stopping capture")
-        self.running = False
 
-        if self.process and self.process.poll() is None:
-            self.process.terminate()
 
-        self.writer.close()
-
+# =========================
+# ENTRYPOINT
+# =========================
 
 def resolve_base_directory() -> Path:
     if getattr(sys, "frozen", False):
@@ -296,13 +344,13 @@ def main() -> None:
     paths = CapturePaths(base_dir)
     paths.initialize()
 
-    tshark_path = TsharkLocator.locate()
-    interface_index = NetworkInterfaceResolver(tshark_path).resolve()
+    tshark = TsharkLocator.locate()
+    iface = NetworkInterfaceResolver(tshark).resolve()
+    command = TsharkCommandFactory.build(tshark, iface)
 
-    command = TsharkCommandFactory.build(tshark_path, interface_index)
-    writer = BufferedPacketWriter(paths.output_csv)
-
+    writer = RotatingPacketWriter(paths)
     CaptureSession(command, writer).start()
+
 
 
 if __name__ == "__main__":

@@ -62,3 +62,4 @@ frontend/dist
 *.sw?
 
 app/network_flow_tracker/streams
+tracker-exe/files

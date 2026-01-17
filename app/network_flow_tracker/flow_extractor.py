@@ -174,10 +174,14 @@ class PacketStreamDivider:
             print(f"[STREAM-IDLE-CLOSE] {stream.stream_id}", flush=True)
             self._finalize_stream(stream)
 
-    def run(self) -> None:
+    def run(self, stop_event) -> None:
         last_offset = 0 if self.start_mode == "replay" else self.offset_store.load()
 
         while True:
+            if stop_event and stop_event.is_set():
+                print("[FLOW] Stop signal received", flush=True)
+                break
+
             if self.start_mode == "live":
                 self._expire_idle_streams_wallclock()
                 print(f"[LIVE-HEARTBEAT] {time.time():.2f}", flush=True)

@@ -34,12 +34,12 @@ class PredictionResult(BaseModel):
     )
 
     predicted_class = Column(String, nullable=False)
+    action = Column(Integer, nullable=False)
+
     pred_idx = Column(Integer, nullable=False, default=-1)
 
     probs = Column(JSON, nullable=False)
     embedding = Column(JSON, nullable=True)
-
-    action = Column(Integer, nullable=False)
 
     max_p = Column(Float, nullable=False)
     margin = Column(Float, nullable=False)

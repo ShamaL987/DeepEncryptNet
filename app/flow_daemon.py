@@ -44,7 +44,7 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
                 max_duration_sec=cfg.get("max_duration_sec", 20.0),
             )
 
-            divider.run(stop_event=stop_event, batch_id=batch.name)
+            divider.run(stop_event=stop_event, batch_id=batch.stem)
 
             processed_path = processed_dir / processing_path.name
             processing_path.replace(processed_path)

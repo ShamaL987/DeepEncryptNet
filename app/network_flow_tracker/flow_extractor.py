@@ -103,13 +103,14 @@ class PacketStreamDivider:
             return True
         return False
 
-    def _finalize_stream(self, stream: ActiveStream, batch_id: str) -> None:
+    def _finalize_stream(self, stream: ActiveStream) -> None:
         stream.writer.close()
 
         if self.extract_features and not stream.features_extracted:
-            self.extractor.extract(stream.writer.path, stream.stream_id, batch_id)
-            stream.features_extracted = True
-            self.prediction_queue.enqueue(stream.stream_id + batch_id)
+            stats_saved = self.extractor.extract(stream.writer.path, stream.stream_id)
+            if stats_saved:
+                stream.features_extracted = True
+                self.prediction_queue.enqueue(stream.stream_id)
 
     def _get_or_create_stream(
         self,
@@ -122,18 +123,19 @@ class PacketStreamDivider:
 
         if existing:
             if self._should_split(existing, ts):
-                self._finalize_stream(existing, batch_id)
+                self._finalize_stream(existing)
                 del self.active_streams[key]
             else:
                 return existing
 
-        stream_id = self._new_stream_id()
+        new_stream_id = self._new_stream_id()
+        stream_id = f"{batch_id}_{new_stream_id}"
         writer = StreamFileWriter(stream_id, self.output_dir, header)
         stream = ActiveStream(stream_id, writer, ts, ts)
         self.active_streams[key] = stream
         return stream
 
-    def run(self, stop_event, batch_id) -> None:
+    def run(self, stop_event, batch_id) -> bool | None:
         with self.packet_csv.open("r", newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             header = next(reader, None)
@@ -161,5 +163,5 @@ class PacketStreamDivider:
 
         # finalize remaining streams
         for stream in list(self.active_streams.values()):
-            self._finalize_stream(stream, batch_id)
+            self._finalize_stream(stream)
         self.active_streams.clear()

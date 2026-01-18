@@ -60,7 +60,7 @@ def hybrid_pipeline(flow_id: str) -> Dict[str, Any]:
         "flow_id": flow_id,
         "predicted_class": predicted_class,
         "confidence": max_p,
-        "decision": out.get("decision"),
+        "action": action_val,
         "margin": margin,
         "entropy": entropy,
     }

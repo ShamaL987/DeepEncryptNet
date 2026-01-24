@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from app.database.init_db import ensure_schema
 from app.settings import get_settings, log
 from app.flow_daemon import run_flow_daemon
+from app.api.dashboard import router as dashboard_router
+
 
 settings = get_settings()
 FLOW_CFG = settings.get("flow_daemon", {})
@@ -49,3 +51,15 @@ application = FastAPI(
     title="DeepEncryptNet Flow Daemon",
     lifespan=lifespan,
 )
+
+from fastapi.middleware.cors import CORSMiddleware
+
+application.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # OK for MVP
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+application.include_router(dashboard_router)

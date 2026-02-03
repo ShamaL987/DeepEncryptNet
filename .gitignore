@@ -61,4 +61,8 @@ frontend/dist
 *.sln
 *.sw?
 
+app/network_flow_tracker/streams
+app/static
+tracker-exe/files
 
+deepencryptnetv1.tar

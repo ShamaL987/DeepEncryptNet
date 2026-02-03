@@ -1,0 +1,30 @@
+flow_daemon:
+  ready_dir: "/data/files/captures/ready"
+  processing_dir: "/data/files/processing/processing_dir"
+  processed_dir: "/data/files/processing/processed_dir"
+  streams_dir: "/data/files/processing/streams_dir"
+
+  output_dir: "/data/runtime/streams"
+  offset_file: "/data/runtime/offset.json"
+
+  mode: "live"
+  idle_timeout_sec: 10.0
+  poll_interval_sec: 1.0
+  enable_stats: true
+
+  db_path: "/data/runtime/flow_state.db"
+
+  columns:
+    timestamp: "timestamp"
+    src_ip: "src_ip"
+    src_port: "src_port"
+    dst_ip: "dst_ip"
+    dst_port: "dst_port"
+    protocol: "protocol"
+
+database:
+  host: "127.0.0.1"
+  port: 5432
+  name: "flows"
+  user: "postgres"
+  password: "postgres"

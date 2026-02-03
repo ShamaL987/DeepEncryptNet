@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from sqlalchemy import text
-from .db import engine, Base
-from . import models  # noqa: F401
+from app.database.db import engine, Base
+from app.database.models import *  # noqa: F401
 
 def ensure_schema() -> None:
-
 
     with engine.begin() as conn:
         # Drop all tables (CASCADE ensures FK dependencies are removed)

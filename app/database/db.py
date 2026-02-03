@@ -30,3 +30,11 @@ def session_scope():
         raise
     finally:
         session.close()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

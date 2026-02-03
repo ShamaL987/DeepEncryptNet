@@ -17,6 +17,20 @@ Endpoints:
 - `WS /ws/live`
 
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-docker-compose up -d
+create exe for packet sniffer
+
 pyinstaller --onefile --console --uac-admin main.py
+
+run app
+uvicorn app.main:application --host 0.0.0.0 --port 8000 --reload
+
+local
+
+docker compose -f docker-compose.dev.yml up -d
+docker logs -f deepencryptnet_db
+
+
+docker
+
+docker compose --build --no-cache
+docker compose up

@@ -2,38 +2,43 @@
 name = "fyp-dev"
 version = "0.1.0"
 description = "deepencryptnet"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-    "alembic>=1.13",
-    "dataclasses>=0.8",
-    "fastapi>=0.119.0",
-    "httpx>=0.28.1",
-    "imblearn>=0.0",
-    "notebook>=7.4.7",
-    "numpy>=2.3.4",
-    "pandas>=2.3.3",
-    "psycopg2>=2.9.11",
-    "psycopg2-binary>=2.9",
-    "pydantic>=2.7",
-    "pyinstaller>=6.16.0",
-    "pytest>=9.0.2",
-    "pyyaml>=6.0.3",
-    "scapy>=2.6.1",
-    "scikit-learn>=1.7.2",
-    "setuptools>=80.9.0",
-    "sqlalchemy>=2.0",
-    "torch==2.5.1+cu121",
-    "uvicorn[standard]>=0.37.0",
-    "wheel>=0.45.1",
+  "fastapi==0.115.8",
+  "httpx==0.28.1",
+  "numpy==2.2.1",
+  "pandas==2.2.3",
+  "psycopg2-binary>=2.9.11",
+  "pydantic==2.10.6",
+  "pydantic-settings==2.7.1",
+  "pytest>=9.0.2",
+  "pyyaml==6.0.2",
+  "scapy==2.6.1",
+  "scikit-learn==1.6.0",
+  "scipy==1.14.1",
+  "sqlalchemy==2.0.36",
+  "torch==2.5.1+cu121",
+  "uvicorn[standard]==0.34.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.2",
+  "notebook==7.4.7",
+  "pyinstaller==6.16.0",
 ]
 
 [tool.uv]
-index-strategy = "unsafe-best-match"
-
+index-strategy = "first-index"
 
 [tool.uv.sources]
-torch = { index = "pytorch" }
+torch = { index = "pytorch-cu121" }
 
 [[tool.uv.index]]
-name = "pytorch"
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
 url = "https://download.pytorch.org/whl/cu121"
+explicit = true

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from starlette.responses import FileResponse
+from starlette.staticfiles import StaticFiles
 
 from app.database.init_db import ensure_schema
 from app.settings import get_settings, log
@@ -56,10 +59,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 application.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # OK for MVP
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 application.include_router(dashboard_router)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "static", "dashboard")
+
+application.mount(
+    "/assets",
+    StaticFiles(directory=os.path.join(FRONTEND_DIR, "assets")),
+    name="assets",
+)
+
+@application.get("/")
+def serve_dashboard():
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
+@application.get("/{path:path}")
+def spa_fallback(path: str):
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "Frontend not built"}

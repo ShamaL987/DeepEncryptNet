@@ -16,21 +16,33 @@ logging.basicConfig(
 log = logging.getLogger("FlowDaemon")
 
 
-
 class Settings:
-    """Loads and validates application configuration."""
     def __init__(self, config_path: str | None = None):
-        self.config_path = Path(config_path or os.getenv("CONFIG_PATH", "app/config.yaml"))
+        default_cfg = "config.docker.yaml" if os.getenv("APP_ENV") == "docker" else "config.local.yaml"
+        self.config_path = Path(config_path or os.getenv("CONFIG_PATH", default_cfg))
         self.data = self._load_config()
 
+    def _resolve_config_path(self) -> str:
+        explicit = os.getenv("CONFIG_PATH")
+        if explicit:
+            return explicit
+
+        env = os.getenv("APP_ENV", "local").strip().lower()
+        if env == "docker":
+            return os.getenv("DOCKER_CONFIG_PATH", "app/config.docker.yaml")
+
+        return os.getenv("LOCAL_CONFIG_PATH", "app/config.yaml")
+
     def _load_config(self) -> dict:
-        """Parses YAML and enforces required sections."""
         if not self.config_path.exists():
             alt = Path(__file__).resolve().parent.parent / "config.yml"
             if alt.exists():
                 self.config_path = alt
             else:
-                raise FileNotFoundError(f"Config file not found: {self.config_path.resolve()}\nPlease create a valid config.yml before starting the server.")
+                raise FileNotFoundError(
+                    f"Config file not found: {self.config_path.resolve()}\n"
+                    f"Please create a valid config.yml before starting the server."
+                )
         try:
             with self.config_path.open("r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
@@ -43,18 +55,13 @@ class Settings:
         return data
 
     def get(self, key: str, default=None):
-        """Returns a top-level config section or default."""
         return self.data.get(key, default)
+
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Returns a cached Settings instance or exits on error."""
     try:
         return Settings()
     except Exception as e:
         print(f"[FATAL CONFIG ERROR] {e}")
         raise SystemExit(1)
-
-
-
-

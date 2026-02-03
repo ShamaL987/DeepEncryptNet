@@ -64,5 +64,6 @@ frontend/dist
 app/network_flow_tracker/streams
 app/static
 tracker-exe/files
+tracker-exe/capture_https.spec
 
 deepencryptnetv1.tar

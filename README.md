@@ -43,7 +43,7 @@ This repository contains the backend implementation, including:
 - Designed to run with elevated privileges when required  
 
 ```bash
-pyinstaller --onefile --console --uac-admin main.py
+   pyinstaller --onefile --console --uac-admin main.py
 ```
 
 ---

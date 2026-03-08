@@ -1,0 +1,32 @@
+{
+  "tau": 0.97,
+  "routed_count": 5436,
+  "dbscan_eps": 0.7,
+  "dbscan_min_samples": 20,
+  "clusters": [
+    {
+      "cluster_id": -1,
+      "count": 5266
+    },
+    {
+      "cluster_id": 0,
+      "count": 40
+    },
+    {
+      "cluster_id": 1,
+      "count": 34
+    },
+    {
+      "cluster_id": 2,
+      "count": 32
+    },
+    {
+      "cluster_id": 3,
+      "count": 34
+    },
+    {
+      "cluster_id": 4,
+      "count": 30
+    }
+  ]
+}

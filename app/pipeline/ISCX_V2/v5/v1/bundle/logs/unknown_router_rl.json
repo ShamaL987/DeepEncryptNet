@@ -1,0 +1,13 @@
+{
+  "beta": 2.0794415416798357,
+  "route_cost": 0.038164615631103516,
+  "routed_count": 1024,
+  "dbscan_eps": 0.7,
+  "dbscan_min_samples": 20,
+  "clusters": [
+    {
+      "cluster_id": -1,
+      "count": 1024
+    }
+  ]
+}

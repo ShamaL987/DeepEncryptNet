@@ -1,0 +1,14 @@
+{
+  "classes": [
+    "BROWSING",
+    "CHAT",
+    "FT",
+    "MAIL",
+    "P2P",
+    "STREAMING",
+    "VOIP"
+  ],
+  "dropped_rare_encoded_ids": [
+    7
+  ]
+}

@@ -6,9 +6,10 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
+from uuid import uuid4
 
 # =========================
 # CONFIGURATION
@@ -243,6 +244,7 @@ class RotatingPacketWriter:
     ):
         self.paths = paths
         self.rotate_interval_sec = rotate_interval_sec
+        self.capture_session_id = self._generate_capture_session_id()
 
         self.batch_id = 0
         self.packet_count = 0
@@ -254,6 +256,12 @@ class RotatingPacketWriter:
 
         self._open_new_batch()
 
+    @staticmethod
+    def _generate_capture_session_id() -> str:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short_uid = uuid4().hex[:8]
+        return f"capture_{ts}_{short_uid}"
+
     def _open_new_batch(self) -> None:
         if self.file:
             self._close_batch()
@@ -262,7 +270,9 @@ class RotatingPacketWriter:
         self.packet_count = 0
         self.start_time = time.time()
 
-        self.current_tmp = self.paths.writing / f"batch_{self.batch_id:05d}.tmp"
+        self.current_tmp = self.paths.writing / (
+            f"{self.capture_session_id}_batch_{self.batch_id:05d}.tmp"
+        )
         self.file = self.current_tmp.open("w", newline="", encoding="utf-8")
         self.writer = csv.writer(self.file)
         self.writer.writerow([

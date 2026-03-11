@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from app.pipeline.classifier import get_logits
-from app.pipeline.config import (
+from app.pipeline.ISCX_V1.classifier import get_logits
+from app.pipeline.ISCX_V1.config import (
     train_feature_cols,
     shiftlog_params,
     imp,

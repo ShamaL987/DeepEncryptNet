@@ -72,38 +72,26 @@ class ISCXV2Inference:
         self.cnn.to(self.device)
         self.cnn.eval()
 
-        self.use_temperature_for_routing = bool(
-            self.routing_choice.get(
-                "use_temperature_for_routing",
-                self.bundle_meta.get(
-                    "use_temperature_for_routing",
-                    self.run_card.get("use_temperature_for_routing", False),
-                ),
-            )
-        )
-        self.selected_probs_variant = str(
-            self.routing_choice.get(
-                "selected_probs_variant",
-                self.bundle_meta.get(
-                    "selected_probs_variant",
-                    self.run_card.get("selected_probs_variant", "raw"),
-                ),
-            )
-        )
-
+        self.use_temperature_for_routing = bool(self.bundle_meta.get("use_temperature_for_routing", False))
+        self.selected_probs_variant = str(self.bundle_meta.get("selected_probs_variant", "raw"))
         self.temperature_T: Optional[float] = None
-        temp_fp = self.models_dir / self.bundle_meta.get("temperature_scaler_file", "temperature_scaler.pt")
-        if temp_fp.exists():
-            t_ckpt = torch.load(temp_fp, map_location="cpu")
-            T = t_ckpt.get("T", None)
-            if T is None and isinstance(t_ckpt, dict) and "state_dict" in t_ckpt and "log_t" in t_ckpt["state_dict"]:
-                self.temperature_T = float(torch.exp(t_ckpt["state_dict"]["log_t"]).item())
-            else:
-                self.temperature_T = float(T) if T is not None else None
 
-        if not self.temperature_T:
-            self.use_temperature_for_routing = False
-            self.selected_probs_variant = "raw"
+        if self.use_temperature_for_routing:
+            temp_fp = self.models_dir / self.bundle_meta.get("temperature_scaler_file", "temperature_scaler.pt")
+
+            if temp_fp.exists():
+                t_ckpt = torch.load(temp_fp, map_location="cpu")
+                T = t_ckpt.get("T", None)
+
+                if T is None and isinstance(t_ckpt, dict) and "state_dict" in t_ckpt and "log_t" in t_ckpt[
+                    "state_dict"]:
+                    self.temperature_T = float(torch.exp(t_ckpt["state_dict"]["log_t"]).item())
+                else:
+                    self.temperature_T = float(T) if T is not None else None
+
+            if self.temperature_T is None:
+                self.use_temperature_for_routing = False
+                self.selected_probs_variant = "raw"
 
         self.rl_policy: Optional[RLDecisionLayer] = None
         rl_fp = self.models_dir / self.bundle_meta.get("rl_policy_file", "rl_policy.pt")

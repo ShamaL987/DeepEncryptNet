@@ -17,10 +17,9 @@ flow_daemon:
     dst_ip: 'dst_ip'
     dst_port: 'dst_port'
     protocol: 'protocol'
-
-database:
-  host: 'localhost'
-  port: 5432
-  name: 'flows'
-  user: 'postgres'
-  password: ''
+  database:
+    host: 'localhost'
+    port: 5432
+    name: 'flows'
+    user: 'postgres'
+    password: ''

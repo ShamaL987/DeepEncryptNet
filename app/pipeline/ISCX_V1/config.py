@@ -1,9 +1,9 @@
 import json, numpy as np, torch, joblib
 from pathlib import Path
 
-from app.pipeline.classifier import FeatureCNN_Attn, TemperatureScaler, RLDecisionLayer
+from app.pipeline.ISCX_V1.classifier import FeatureCNN_Attn, TemperatureScaler, RLDecisionLayer
 
-ROOT = Path("app/pipeline/deepv14").resolve()
+ROOT = Path("app/pipeline/ISCX_V1/deepv14").resolve()
 MANIFEST_PATH = ROOT/"logs"/"artifacts_manifest.json"
 
 manifest = json.load(open(MANIFEST_PATH))

@@ -2,9 +2,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
-from app.settings import get_settings
+from app.settings import get_settings_manager
 
-settings = get_settings()
+settings = get_settings_manager().get_all()
 db_cfg = settings.get("database")
 
 DATABASE_URL = (

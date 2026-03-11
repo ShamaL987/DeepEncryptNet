@@ -1,6 +1,6 @@
 from concurrent.futures.thread import ThreadPoolExecutor
 
-from app.pipeline.caller import hybrid_pipeline
+from app.pipeline.ISCX_V1.caller import hybrid_pipeline
 from app.settings import log
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 import threading
 
 from app.network_flow_tracker.flow_extractor import PacketStreamDivider
-from app.pipeline.prediction_queue import PredictionQueue
+from app.pipeline.ISCX_V1.prediction_queue import PredictionQueue
 from app.settings import log
 
 

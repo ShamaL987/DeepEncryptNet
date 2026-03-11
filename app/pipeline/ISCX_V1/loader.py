@@ -3,7 +3,7 @@ import pandas as pd
 
 from app.database.db import session_scope
 from app.database.models import FlowStats
-from app.pipeline.config import kept_features
+from app.pipeline.ISCX_V1.config import kept_features
 
 
 def get_flow_features_df(flow_id: str) -> pd.DataFrame:

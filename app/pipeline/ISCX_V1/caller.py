@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Dict, Any
 import pandas as pd
-from app.pipeline.helpers import infer_one
-from app.pipeline.loader import get_flow_features_df
+from app.pipeline.ISCX_V1.helpers import infer_one
+from app.pipeline.ISCX_V1. loader import get_flow_features_df
 from app.database.db import session_scope
 from app.database.models import PredictionResult
 

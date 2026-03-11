@@ -1,0 +1,27 @@
+flow_daemon:
+#  ready_dir: "D:/FYP_DEV/tracker-exe/files/captures/ready"
+#  processing_dir: "D:/FYP_DEV/tracker-exe/files/processing/processing_dir"
+#  processed_dir: "D:/FYP_DEV/tracker-exe/files/processing/processed_dir"
+#  streams_dir: "D:/FYP_DEV/tracker-exe/files/processing/streams_dir"
+#  output_dir: "D:/FYP_DEV/app/network_flow_tracker/streams"
+  offset_file: "D:/FYP_DEV/app/network_flow_tracker/offset.json"
+  runtime_json_path: "app/runtime_config.json"
+#  mode: "live"
+#  idle_timeout_sec: 10.0
+#  poll_interval_sec: 1.0
+#  enable_stats: true
+  db_path: 'D:/FYP_DEV/app/data/flow_state.db'
+  columns:
+    timestamp: 'timestamp'
+    src_ip: 'src_ip'
+    src_port: 'src_port'
+    dst_ip: 'dst_ip'
+    dst_port: 'dst_port'
+    protocol: 'protocol'
+
+database:
+  host: 'localhost'
+  port: 5432
+  name: 'flows'
+  user: 'postgres'
+  password: ''

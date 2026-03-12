@@ -11,21 +11,17 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-# =========================
-# CONFIGURATION
-# =========================
-
 BPF_FILTER = "tcp port 443 or udp port 443"
 SCHEMA_VERSION = "v1"
 
-ROTATE_EVERY_SECONDS = 30        # batch duration
-ROTATE_MAX_PACKETS = 100        # batch size
+ROTATE_EVERY_SECONDS = 30
+ROTATE_MAX_PACKETS = 100
 
 FIELD_SEPARATOR = "\t"
 
-
 CSV_COLUMNS = [
     "timestamp",
+    "frame_number",
     "src_ip",
     "src_port",
     "dst_ip",
@@ -37,6 +33,7 @@ CSV_COLUMNS = [
 
 TSHARK_FIELDS = [
     "frame.time_epoch",
+    "frame.number",
     "ip.src",
     "ipv6.src",
     "tcp.srcport",
@@ -50,13 +47,9 @@ TSHARK_FIELDS = [
 ]
 
 
-# =========================
-# PATHS
-# =========================
-
 class CapturePaths:
     def __init__(self, base_dir: Path):
-        self.base = base_dir /"files"/"captures"
+        self.base = base_dir / "files" / "captures"
         self.writing = self.base / "writing"
         self.ready = self.base / "ready"
 
@@ -64,9 +57,6 @@ class CapturePaths:
         self.writing.mkdir(parents=True, exist_ok=True)
         self.ready.mkdir(parents=True, exist_ok=True)
 
-# =========================
-# TSHARK DISCOVERY
-# =========================
 
 class TsharkLocator:
     @staticmethod
@@ -97,10 +87,6 @@ class TsharkLocator:
 
         raise RuntimeError("tshark executable not found")
 
-
-# =========================
-# INTERFACE RESOLUTION
-# =========================
 
 class NetworkInterfaceResolver:
     def __init__(self, tshark_path: Path):
@@ -166,10 +152,6 @@ class NetworkInterfaceResolver:
             print("Interface not usable")
 
 
-# =========================
-# TSHARK COMMAND
-# =========================
-
 class TsharkCommandFactory:
     @staticmethod
     def build(tshark_path: Path, interface_index: int) -> list[str]:
@@ -187,10 +169,6 @@ class TsharkCommandFactory:
         return cmd
 
 
-# =========================
-# PACKET PARSER
-# =========================
-
 class PacketParser:
     @staticmethod
     def parse(line: str) -> Optional[list[str]]:
@@ -200,6 +178,7 @@ class PacketParser:
 
         (
             ts,
+            frame_number,
             ipv4_src, ipv6_src,
             tcp_src, udp_src,
             ipv4_dst, ipv6_dst,
@@ -222,6 +201,7 @@ class PacketParser:
 
         return [
             ts,
+            frame_number,
             src_ip,
             src_port,
             dst_ip,
@@ -232,18 +212,16 @@ class PacketParser:
         ]
 
 
-# =========================
-# ROTATING CSV WRITER
-# =========================
-
 class RotatingPacketWriter:
     def __init__(
         self,
         paths: CapturePaths,
-        rotate_interval_sec: int = 30
+        rotate_interval_sec: int = ROTATE_EVERY_SECONDS,
+        rotate_max_packets: int = ROTATE_MAX_PACKETS,
     ):
         self.paths = paths
         self.rotate_interval_sec = rotate_interval_sec
+        self.rotate_max_packets = rotate_max_packets
         self.capture_session_id = self._generate_capture_session_id()
 
         self.batch_id = 0
@@ -275,16 +253,7 @@ class RotatingPacketWriter:
         )
         self.file = self.current_tmp.open("w", newline="", encoding="utf-8")
         self.writer = csv.writer(self.file)
-        self.writer.writerow([
-            "timestamp",
-            "src_ip",
-            "src_port",
-            "dst_ip",
-            "dst_port",
-            "transport",
-            "app_protocol",
-            "packet_length",
-        ])
+        self.writer.writerow(CSV_COLUMNS)
 
     def _close_batch(self) -> None:
         self.file.flush()
@@ -300,18 +269,16 @@ class RotatingPacketWriter:
         self.writer.writerow(row)
         self.packet_count += 1
 
-        if (
-           (now - self.start_time) >= self.rotate_interval_sec
-        ):
+        should_rotate_by_time = (now - self.start_time) >= self.rotate_interval_sec
+        should_rotate_by_packets = self.packet_count >= self.rotate_max_packets
+
+        if should_rotate_by_time or should_rotate_by_packets:
             self._open_new_batch()
 
     def close(self) -> None:
         if self.file:
             self._close_batch()
 
-# =========================
-# CAPTURE SESSION
-# =========================
 
 class CaptureSession:
     def __init__(self, command: list[str], writer: RotatingPacketWriter):
@@ -338,11 +305,6 @@ class CaptureSession:
             proc.terminate()
 
 
-
-# =========================
-# ENTRYPOINT
-# =========================
-
 def resolve_base_directory() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
@@ -360,7 +322,6 @@ def main() -> None:
 
     writer = RotatingPacketWriter(paths)
     CaptureSession(command, writer).start()
-
 
 
 if __name__ == "__main__":

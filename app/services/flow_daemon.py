@@ -3,7 +3,7 @@ from pathlib import Path
 import threading
 
 from app.network_flow_tracker.flow_extractor import PacketStreamDivider
-from app.pipeline.ISCX_V1.prediction_queue import PredictionQueue
+from app.pipeline.prediction_queue import PredictionQueue
 from app.settings import log
 
 
@@ -15,7 +15,7 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
     processing_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    prediction_queue = PredictionQueue()
+    prediction_queue = PredictionQueue(cfg["feature_pipeline"])
 
     log.info("[FlowDaemon] Watching batch directory")
 
@@ -42,6 +42,8 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
                 idle_timeout_sec=cfg.get("idle_timeout_sec", 30.0),
                 max_packets=cfg.get("max_packets", 100),
                 max_duration_sec=cfg.get("max_duration_sec", 20.0),
+                pipeline_name = cfg.get("feature_pipeline", "HTTPS"),
+                idle_threshold = float(cfg.get("feature_idle_threshold", 1.0))
             )
 
             divider.run(stop_event=stop_event, batch_id=batch.stem)

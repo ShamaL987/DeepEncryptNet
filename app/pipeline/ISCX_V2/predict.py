@@ -9,7 +9,5 @@ def run_predict(df_live: pd.DataFrame):
 
     pipeline = ISCXV2Inference(BUNDLE_DIR)
 
-
-
     out = pipeline.predict(df_live, return_probs=False, return_embeddings=False)
     print(out)

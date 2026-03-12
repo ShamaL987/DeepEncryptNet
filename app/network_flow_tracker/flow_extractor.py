@@ -5,8 +5,8 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from app.network_flow_tracker.stream_feature_extractor import StreamFeatureExtractor
-
+from app.network_flow_tracker.stream_feature_extractor import ConfiguredPipelineStreamFeatureExtractor
+from app.pipeline.prediction_queue import PredictionQueue
 
 FlowKey = Tuple[str, str, str, str, str]
 
@@ -56,6 +56,8 @@ class PacketStreamDivider:
         self,
         packet_csv: Path,
         output_dir: Path,
+        pipeline_name,
+        idle_threshold,
         extract_features: bool,
         prediction_queue=None,
         idle_timeout_sec: float = 30.0,
@@ -75,7 +77,7 @@ class PacketStreamDivider:
         self.stream_counter = 0
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.extractor = StreamFeatureExtractor(idle_threshold=1.0)
+        self.extractor = ConfiguredPipelineStreamFeatureExtractor(pipeline_name=pipeline_name, idle_threshold=idle_threshold)
 
         self.total_finalized_streams = 0
         self.total_extracted_streams = 0

@@ -10,6 +10,7 @@
     "mode": "live",
     "idle_timeout_sec": 10.0,
     "poll_interval_sec": 1.0,
-    "enable_stats": true
+    "enable_stats": true,
+    "feature_pipeline": "ISCX_V1"
   }
 }

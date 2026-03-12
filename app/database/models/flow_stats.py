@@ -4,7 +4,7 @@ from sqlalchemy import (
     Column,
     String,
     Float,
-    DateTime,
+    DateTime, ForeignKey,
 )
 from sqlalchemy.orm import relationship
 from app.database.models.base import BaseModel
@@ -18,7 +18,11 @@ class FlowStats(BaseModel):
 
     __tablename__ = "flow_stats"
 
-    flow_id = Column(String, primary_key=True)
+    flow_id = Column(
+        String,
+        ForeignKey("flow_registry.flow_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
 
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
@@ -45,10 +49,4 @@ class FlowStats(BaseModel):
     min_flowiat = Column(Float)
     std_flowiat = Column(Float)
 
-    prediction = relationship(
-        "PredictionResult",
-        back_populates="flow",
-        uselist=False,
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
+    flow_registry = relationship("FlowRegistry")

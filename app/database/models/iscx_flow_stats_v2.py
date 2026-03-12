@@ -1,22 +1,11 @@
-from __future__ import annotations
-
-from sqlalchemy import (
-    Column,
-    String,
-    Float,
-    DateTime, ForeignKey,
-)
+from sqlalchemy import Column, Float, ForeignKey, String
 from sqlalchemy.orm import relationship
+
 from app.database.models.base import BaseModel
 
 
-class FlowStats(BaseModel):
-    """
-    Fully observed and closed network flow.
-    Contains all extracted statistical features.
-    """
-
-    __tablename__ = "flow_stats"
+class ISCXFlowStatsV2(BaseModel):
+    __tablename__ = "iscx_flow_stats_v2"
 
     flow_id = Column(
         String,
@@ -38,11 +27,13 @@ class FlowStats(BaseModel):
     mean_biat = Column(Float)
     min_biat = Column(Float)
     total_biat = Column(Float)
+    std_biat = Column(Float)
 
     max_fiat = Column(Float)
     mean_fiat = Column(Float)
     min_fiat = Column(Float)
     total_fiat = Column(Float)
+    std_fiat = Column(Float)
 
     max_flowiat = Column(Float)
     mean_flowiat = Column(Float)

@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from app.database.db import session_scope
-from app.database.models import ISCXFlowStats, FlowRegistry, FlowStats
+from app.database.models import ISCXFlowStatsV2, FlowRegistry, ISCXFlowStatsV1
 
 
 @dataclass
@@ -293,7 +293,7 @@ class ISCXV1StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             )
             flow_registry.save(db)
 
-            stats_row = FlowStats(
+            stats_row = ISCXFlowStatsV1(
                 flow_id=flow_id,
                 start_time=start_time,
                 end_time=end_time,
@@ -384,7 +384,7 @@ class ISCXV2StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             )
             flow_registry.save(db)
 
-            stats_row = ISCXFlowStats(
+            stats_row = ISCXFlowStatsV2(
                 flow_id=flow_id,
                 start_time=start_time,
                 end_time=end_time,

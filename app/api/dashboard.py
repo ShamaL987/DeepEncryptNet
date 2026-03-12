@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database.db import get_db
-from app.database.models import FlowStats, PredictionResult
+from app.database.models import ISCXFlowStatsV1, PredictionResult
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -12,9 +12,9 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 
 @router.get("/status")
 def system_status(db: Session = Depends(get_db)):
-    first_start = db.query(func.min(FlowStats.start_time)).scalar()
+    first_start = db.query(func.min(ISCXFlowStatsV1.start_time)).scalar()
     last_pred = db.query(func.max(PredictionResult.created_at)).scalar()
-    total_flows = db.query(FlowStats).count()
+    total_flows = db.query(ISCXFlowStatsV1).count()
 
     now = datetime.now(timezone.utc).timestamp()
     uptime = now - first_start if first_start else None
@@ -165,18 +165,18 @@ def recent_flows(
 ):
     rows = (
         db.query(
-            FlowStats.flow_id,
-            FlowStats.start_time,
-            FlowStats.end_time,
-            FlowStats.duration,
-            FlowStats.flowBytesPerSecond,
+            ISCXFlowStatsV1.flow_id,
+            ISCXFlowStatsV1.start_time,
+            ISCXFlowStatsV1.end_time,
+            ISCXFlowStatsV1.duration,
+            ISCXFlowStatsV1.flowBytesPerSecond,
             PredictionResult.predicted_class,
             PredictionResult.action,
             PredictionResult.max_p,
             PredictionResult.entropy,
             PredictionResult.created_at
         )
-        .join(PredictionResult, FlowStats.flow_id == PredictionResult.flow_id)
+        .join(PredictionResult, ISCXFlowStatsV1.flow_id == PredictionResult.flow_id)
         .order_by(PredictionResult.created_at.desc())
         .limit(limit)
         .all()

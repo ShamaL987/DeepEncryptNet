@@ -52,12 +52,3 @@ def _probs_to_state(probs: np.ndarray) -> np.ndarray:
 
     entropy = (-np.sum(probs * np.log(np.clip(probs, 1e-9, 1.0)), axis=1, keepdims=True)).astype(np.float32)
     return np.concatenate([probs, conf.astype(np.float32), entropy, margin], axis=1).astype(np.float32)
-
-
-def resolve_bundle_dir(run_or_bundle_dir: Union[str, Path]) -> Path:
-    root = _as_path(run_or_bundle_dir).resolve()
-    if (root / "inference_bundle.json").exists():
-        return root
-    if (root / "bundle" / "inference_bundle.json").exists():
-        return (root / "bundle").resolve()
-    raise FileNotFoundError("Could not find inference_bundle.json in given path (or its /bundle subfolder).")

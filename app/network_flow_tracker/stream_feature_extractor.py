@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from app.database.db import session_scope
-from app.database.models import ISCXFlowStatsV2, FlowRegistry, ISCXFlowStatsV1
+from app.database.models import ISCXFlowStatsV2, FlowRegistry, ISCXFlowStatsV1, HTTPSFlowStats
 
 
 @dataclass
@@ -117,17 +117,54 @@ class BasePacketStreamFeatureExtractor:
         return float(active_series.max()), float(active_series.std(ddof=0))
 
 
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+
 class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
     def __init__(self, burst_gap_threshold: float = 1.0):
         super().__init__(idle_threshold=burst_gap_threshold)
         self.burst_gap_threshold = burst_gap_threshold
+
+    @staticmethod
+    def _safe_div(numerator: float, denominator: float) -> float:
+        denominator_value = float(denominator)
+        if abs(denominator_value) < 1e-12:
+            return 0.0
+        return float(numerator) / denominator_value
+
+    def _coefficient_of_variation(self, values: pd.Series) -> float:
+        if values.empty:
+            return 0.0
+        mean_value = float(values.mean())
+        std_value = float(values.std(ddof=1)) if len(values) > 1 else 0.0
+        return self._safe_div(std_value, mean_value)
+
+    def _iqr_ratio(self, values: pd.Series) -> float:
+        if values.empty:
+            return 0.0
+        q25 = self._quantile(values, 0.25)
+        q50 = self._quantile(values, 0.50)
+        q75 = self._quantile(values, 0.75)
+        return self._safe_div(q75 - q25, q50)
+
+    @staticmethod
+    def _direction_switch_rate(direction_mask: pd.Series) -> float:
+        if len(direction_mask) < 2:
+            return 0.0
+        direction_values = direction_mask.astype(int).reset_index(drop=True)
+        switches = direction_values.ne(direction_values.shift(1)).iloc[1:]
+        return float(switches.mean()) if not switches.empty else 0.0
 
     def extract(self, stream_csv: Path, flow_id: str) -> dict[str, Any] | None:
         df = self._load_stream_df(stream_csv)
         if df is None or df.empty:
             return None
 
-        forward_mask = self._forward_mask(df)
+        df = df.reset_index(drop=True)
+        forward_mask = self._forward_mask(df).reset_index(drop=True)
 
         timestamps = df["timestamp"].astype(float).reset_index(drop=True)
         lengths = df["packet_length"].astype(float).reset_index(drop=True)
@@ -138,52 +175,104 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         intervals = timestamps.diff().dropna().reset_index(drop=True)
         bursts = self._build_bursts(df, forward_mask)
 
-        burst_bytes = pd.Series([burst.byte_count for burst in bursts], dtype="float64")
-        burst_packets = pd.Series([burst.packet_count for burst in bursts], dtype="float64")
-        burst_durations = pd.Series([burst.duration for burst in bursts], dtype="float64")
+        burst_bytes = pd.Series([float(burst.byte_count) for burst in bursts], dtype="float64")
+        burst_packets = pd.Series([float(burst.packet_count) for burst in bursts], dtype="float64")
+        burst_durations = pd.Series([float(burst.duration) for burst in bursts], dtype="float64")
         burst_intervals = pd.Series(self._build_burst_intervals(bursts), dtype="float64")
+
+        total_packets = int(len(lengths))
+        total_bytes = float(lengths.sum())
+        forward_packets = int(forward_mask.sum())
+        forward_bytes = float(forward_lengths.sum())
+
+        prefix_duration = float(timestamps.iloc[-1] - timestamps.iloc[0]) if len(timestamps) > 1 else 0.0
+        prefix_direction_switch_rate = self._direction_switch_rate(forward_mask)
+
+        prefix_mean_fwd_len = float(forward_lengths.mean()) if not forward_lengths.empty else 0.0
+        prefix_mean_rev_len = float(reverse_lengths.mean()) if not reverse_lengths.empty else 0.0
+
+        pkt_lengths_mean = float(lengths.mean()) if not lengths.empty else 0.0
+        pkt_lengths_max = float(lengths.max()) if not lengths.empty else 0.0
+        pkt_lengths_std = float(lengths.std(ddof=1)) if len(lengths) > 1 else 0.0
+        pkt_lengths_25 = self._quantile(lengths, 0.25)
+        pkt_lengths_50 = self._quantile(lengths, 0.50)
+        pkt_lengths_75 = self._quantile(lengths, 0.75)
+
+        intervals_mean = float(intervals.mean()) if not intervals.empty else 0.0
+        intervals_max = float(intervals.max()) if not intervals.empty else 0.0
+        intervals_std = float(intervals.std(ddof=1)) if len(intervals) > 1 else 0.0
+        intervals_25 = self._quantile(intervals, 0.25)
+        intervals_50 = self._quantile(intervals, 0.50)
+        intervals_75 = self._quantile(intervals, 0.75)
+
+        burst_bytes_per_packet = (
+            burst_bytes.divide(burst_packets.where(burst_packets != 0, other=pd.NA))
+            .fillna(0.0)
+            .astype(float)
+        ) if not burst_bytes.empty else pd.Series(dtype="float64")
+
+        brst_intervals_mean = float(burst_intervals.mean()) if not burst_intervals.empty else 0.0
+        brst_intervals_max = float(burst_intervals.max()) if not burst_intervals.empty else 0.0
+        brst_intervals_std = float(burst_intervals.std(ddof=1)) if len(burst_intervals) > 1 else 0.0
+        brst_intervals_25 = self._quantile(burst_intervals, 0.25)
+
+        brst_duration_mean = float(burst_durations.mean()) if not burst_durations.empty else 0.0
+        brst_duration_max = float(burst_durations.max()) if not burst_durations.empty else 0.0
+        brst_duration_std = float(burst_durations.std(ddof=1)) if len(burst_durations) > 1 else 0.0
 
         features: dict[str, Any] = {
             "flow_id": flow_id,
-            "BYTES": float(forward_lengths.sum()),
-            "BYTES_REV": float(reverse_lengths.sum()),
-            "PACKETS": int(forward_mask.sum()),
-            "PACKETS_REV": int((~forward_mask).sum()),
-            "BRST_COUNT": int(len(bursts)),
-            "REV_MORE": float((~forward_mask).sum() > forward_mask.sum()),
-            "PKT_LENGTHS_MEAN": float(lengths.mean()) if not lengths.empty else 0.0,
-            "PKT_LENGTHS_MAX": float(lengths.max()) if not lengths.empty else 0.0,
-            "PKT_LENGTHS_STD": float(lengths.std(ddof=1)) if len(lengths) > 1 else 0.0,
-            "PKT_LENGTHS_25": self._quantile(lengths, 0.25),
-            "PKT_LENGTHS_50": self._quantile(lengths, 0.50),
-            "PKT_LENGTHS_75": self._quantile(lengths, 0.75),
-            "INTERVALS_MEAN": float(intervals.mean()) if not intervals.empty else 0.0,
-            "INTERVALS_MAX": float(intervals.max()) if not intervals.empty else 0.0,
-            "INTERVALS_STD": float(intervals.std(ddof=1)) if len(intervals) > 1 else 0.0,
-            "INTERVALS_25": self._quantile(intervals, 0.25),
-            "INTERVALS_50": self._quantile(intervals, 0.50),
-            "INTERVALS_75": self._quantile(intervals, 0.75),
-            "BRST_BYTES_MEAN": float(burst_bytes.mean()) if not burst_bytes.empty else 0.0,
-            "BRST_BYTES_STD": float(burst_bytes.std(ddof=1)) if len(burst_bytes) > 1 else 0.0,
-            "BRST_PACKETS_MEAN": float(burst_packets.mean()) if not burst_packets.empty else 0.0,
-            "BRST_PACKETS_STD": float(burst_packets.std(ddof=1)) if len(burst_packets) > 1 else 0.0,
-            "BRST_INTERVALS_MEAN": float(burst_intervals.mean()) if not burst_intervals.empty else 0.0,
-            "BRST_INTERVALS_MAX": float(burst_intervals.max()) if not burst_intervals.empty else 0.0,
-            "BRST_INTERVALS_STD": float(burst_intervals.std(ddof=1)) if len(burst_intervals) > 1 else 0.0,
-            "BRST_INTERVALS_25": self._quantile(burst_intervals, 0.25),
-            "BRST_DURATION_MEAN": float(burst_durations.mean()) if not burst_durations.empty else 0.0,
-            "BRST_DURATION_MAX": float(burst_durations.max()) if not burst_durations.empty else 0.0,
-            "BRST_DURATION_STD": float(burst_durations.std(ddof=1)) if len(burst_durations) > 1 else 0.0,
+            "prefix_duration": prefix_duration,
+            "prefix_bytes_per_second": self._safe_div(total_bytes, prefix_duration),
+            "prefix_pkts_per_second": self._safe_div(total_packets, prefix_duration),
+            "prefix_fwd_pkt_share": self._safe_div(forward_packets, total_packets),
+            "prefix_fwd_byte_share": self._safe_div(forward_bytes, total_bytes),
+            "prefix_dir_switch_rate": prefix_direction_switch_rate,
+            "prefix_mean_fwd_len": prefix_mean_fwd_len,
+            "prefix_mean_rev_len": prefix_mean_rev_len,
+            "prefix_fwd_rev_mean_len_ratio": self._safe_div(prefix_mean_fwd_len, prefix_mean_rev_len),
+            "pkt_len_cv": self._safe_div(pkt_lengths_std, pkt_lengths_mean),
+            "pkt_len_iqr_ratio": self._safe_div(pkt_lengths_75 - pkt_lengths_25, pkt_lengths_50),
+            "iat_cv": self._safe_div(intervals_std, intervals_mean),
+            "iat_iqr_ratio": self._safe_div(intervals_75 - intervals_25, intervals_50),
+            "burst_count_per_second": self._safe_div(len(bursts), prefix_duration),
+            "burst_mean_bytes_per_packet": float(burst_bytes_per_packet.mean()) if not burst_bytes_per_packet.empty else 0.0,
+            "burst_std_bytes_per_packet": float(burst_bytes_per_packet.std(ddof=1)) if len(burst_bytes_per_packet) > 1 else 0.0,
+            "burst_top1_byte_share": self._safe_div(float(burst_bytes.max()) if not burst_bytes.empty else 0.0, float(burst_bytes.sum()) if not burst_bytes.empty else 0.0),
+            "burst_interval_cv": self._coefficient_of_variation(burst_intervals),
+            "burst_interval_iqr_ratio": self._iqr_ratio(burst_intervals),
+            "burst_duration_cv": self._coefficient_of_variation(burst_durations),
+            "burst_duration_iqr_ratio": self._iqr_ratio(burst_durations),
+            "PKT_LENGTHS_MEAN": pkt_lengths_mean,
+            "PKT_LENGTHS_MAX": pkt_lengths_max,
+            "PKT_LENGTHS_STD": pkt_lengths_std,
+            "PKT_LENGTHS_25": pkt_lengths_25,
+            "PKT_LENGTHS_50": pkt_lengths_50,
+            "PKT_LENGTHS_75": pkt_lengths_75,
+            "INTERVALS_MEAN": intervals_mean,
+            "INTERVALS_MAX": intervals_max,
+            "INTERVALS_STD": intervals_std,
+            "INTERVALS_25": intervals_25,
+            "INTERVALS_50": intervals_50,
+            "INTERVALS_75": intervals_75,
+            "BRST_INTERVALS_MEAN": brst_intervals_mean,
+            "BRST_INTERVALS_MAX": brst_intervals_max,
+            "BRST_INTERVALS_STD": brst_intervals_std,
+            "BRST_INTERVALS_25": brst_intervals_25,
+            "BRST_DURATION_MEAN": brst_duration_mean,
+            "BRST_DURATION_MAX": brst_duration_max,
+            "BRST_DURATION_STD": brst_duration_std,
         }
 
-        burst_bytes_list = [float(burst.byte_count) for burst in bursts]
-        burst_packets_list = [int(burst.packet_count) for burst in bursts]
+        with session_scope() as db:
+            flow_registry = FlowRegistry(
+                flow_id=flow_id,
+                pipeline_name="HTTPS",
+            )
+            flow_registry.save(db)
 
-        for index in range(8):
-            features[f"BRST_BYTES_{index}"] = burst_bytes_list[index] if index < len(burst_bytes_list) else 0.0
-
-        for index in range(2):
-            features[f"BRST_PACKETS_{index}"] = burst_packets_list[index] if index < len(burst_packets_list) else 0.0
+            stats_row = HTTPSFlowStats(**features)
+            stats_row.save(db)
 
         return features
 

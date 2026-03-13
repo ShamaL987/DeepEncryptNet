@@ -1,4 +1,6 @@
 from concurrent.futures.thread import ThreadPoolExecutor
+
+from app.pipeline.HTTPS.Initializer import HTTPSInference
 from app.settings import log
 
 
@@ -7,29 +9,34 @@ class PredictionQueue:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.pipeline_name = pipeline_name
         self.predict_fn = self._resolve_predict_fn()
+        self.pipeline = self._build_pipeline()
 
     def _resolve_predict_fn(self):
-
         if self.pipeline_name == "ISCX_V1":
             from app.pipeline.ISCX_V1.caller import hybrid_pipeline
             return hybrid_pipeline
 
-        # if self.pipeline_name == "ISCX_V2":
-        #     from app.pipeline.ISCX_V2.caller import hybrid_pipeline
-        #     return hybrid_pipeline
-        #
-        # if self.pipeline_name == "HTTPS":
-        #     from app.pipeline.HTTPS.caller import hybrid_pipeline
-        #     return hybrid_pipeline
+        if self.pipeline_name == "ISCX_V2":
+            from app.pipeline.ISCX_V2.caller import hybrid_pipeline
+            return hybrid_pipeline
+
+        if self.pipeline_name == "HTTPS":
+            from app.pipeline.HTTPS.caller import hybrid_pipeline
+            return hybrid_pipeline
 
         raise ValueError(f"Unsupported pipeline_name: {self.pipeline_name}")
 
-    def enqueue(self, flow_id: str):
+    def _build_pipeline(self):
+        if self.pipeline_name == "HTTPS":
+            return HTTPSInference()
+        return None
+
+    def enqueue(self, flow_id: str) -> None:
         self.executor.submit(self._predict, flow_id)
 
-    def _predict(self, flow_id: str):
+    def _predict(self, flow_id: str) -> None:
         try:
-            result = self.predict_fn(flow_id)
+            result = self.predict_fn(flow_id, self.pipeline)
             decision = "Classify" if result["action"] == 0 else "Route"
 
             log.info(
@@ -40,5 +47,5 @@ class PredictionQueue:
         except Exception:
             log.exception(f"[PREDICT] failed for {flow_id}")
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         self.executor.shutdown(wait=False)

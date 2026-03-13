@@ -7,12 +7,7 @@ __pycache__/
 *.csv
 *.db
 *.sqlite
-*.pkl
-*.pt
-*.pth
 *.onnx
-*.npz
-*.npy
 datasets/
 captures/
 notebooks/.ipynb_checkpoints/

@@ -7,17 +7,18 @@ import joblib
 
 import torch
 
-from app.pipeline.HTTPS.helpers import _read_json, _ensure_df, _coerce_numeric, _softmax_np, _probs_to_state, \
-    resolve_bundle_dir
+from app.pipeline.HTTPS.helpers import _read_json, _ensure_df, _coerce_numeric, _softmax_np, _probs_to_state
 from app.pipeline.HTTPS.models import FeatureCNN_Attn, RLDecisionLayer
+
+BUNDLE_DIR = Path(r"app/pipeline/HTTPS/v8/bundle")
 
 
 class HTTPSInference:
     """Inference that requires ONLY kept_features.json columns in the incoming DataFrame."""
 
-    def __init__(self, run_or_bundle_dir: Union[str, Path], device: Optional[torch.device] = None):
+    def __init__(self, device: Optional[torch.device] = None):
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.bundle_dir = resolve_bundle_dir(run_or_bundle_dir)
+        self.bundle_dir = BUNDLE_DIR
 
         self.logs_dir = self.bundle_dir / "logs"
         self.preprocess_dir = self.bundle_dir / "preprocess"
@@ -35,11 +36,6 @@ class HTTPSInference:
         kept_obj = _read_json(self.logs_dir / "kept_features.json")
         self.kept_features: List[str] = [str(x) for x in kept_obj["kept_features"]]
 
-        # Needed to map shift/log + medians correctly (saved in training)
-        train_cols_obj = _read_json(self.logs_dir / "train_feature_cols.json")
-        self.train_feature_cols: List[str] = [str(x) for x in train_cols_obj["train_feature_cols"]]
-        self.col_to_idx = {c: i for i, c in enumerate(self.train_feature_cols)}
-
         # Load preprocess artifacts
         self.shiftlog_params = joblib.load(self.preprocess_dir / "shiftlog_params.joblib")
         self.imputer = joblib.load(self.preprocess_dir / "imputer_median.joblib")
@@ -52,16 +48,8 @@ class HTTPSInference:
 
         # imputer.statistics_ is aligned to the columns used at fit time (train_feature_cols order)
         stats_all = np.asarray(self.imputer.statistics_, dtype=float)
+        idxs = np.arange(len(self.kept_features), dtype=int)
 
-        idxs = []
-        for c in self.kept_features:
-            if c not in self.col_to_idx:
-                raise ValueError(
-                    f"kept_feature '{c}' not found in train_feature_cols. "
-                    "This means your saved artifacts are inconsistent."
-                )
-            idxs.append(self.col_to_idx[c])
-        idxs = np.array(idxs, dtype=int)
 
         self.shift_vec = shift_all[idxs]
         self.log_mask_vec = log_mask_all[idxs]

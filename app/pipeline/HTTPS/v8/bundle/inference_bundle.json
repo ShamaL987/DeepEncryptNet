@@ -1,0 +1,21 @@
+{
+  "bundle_root": "v8\\https_ratio_v1\\bundle",
+  "models_dir": "models",
+  "preprocess_dir": "preprocess",
+  "logs_dir": "logs",
+  "model_file": "cnn_best.pt",
+  "temperature_scaler_file": "temperature_scaler.pt",
+  "rl_policy_file": "rl_policy.pt",
+  "label_encoder_file": "label_encoder.joblib",
+  "shiftlog_params_file": "shiftlog_params.joblib",
+  "imputer_file": "imputer_median.joblib",
+  "variance_threshold_file": "variance_threshold.joblib",
+  "robust_scaler_file": "robust_scaler.joblib",
+  "standard_scaler_file": "standard_scaler.joblib",
+  "kept_features_file": "kept_features.json",
+  "classes_file": "classes.json",
+  "config_file": "config.json",
+  "run_card_file": "run_card.json",
+  "use_temperature_for_routing": false,
+  "selected_probs_variant": "raw"
+}

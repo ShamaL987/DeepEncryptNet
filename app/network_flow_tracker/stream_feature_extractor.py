@@ -117,16 +117,18 @@ class BasePacketStreamFeatureExtractor:
         return float(active_series.max()), float(active_series.std(ddof=0))
 
 
-from pathlib import Path
-from typing import Any
-
-import pandas as pd
-
 
 class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
-    def __init__(self, burst_gap_threshold: float = 1.0):
+    def __init__(
+        self,
+        burst_gap_threshold: float = 1.0,
+        split_directional_streams: bool = True,
+        save_directional_csvs: bool = True,
+    ):
         super().__init__(idle_threshold=burst_gap_threshold)
         self.burst_gap_threshold = burst_gap_threshold
+        self.split_directional_streams = split_directional_streams
+        self.save_directional_csvs = save_directional_csvs
 
     @staticmethod
     def _safe_div(numerator: float, denominator: float) -> float:
@@ -158,13 +160,14 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         switches = direction_values.ne(direction_values.shift(1)).iloc[1:]
         return float(switches.mean()) if not switches.empty else 0.0
 
-    def extract(self, stream_csv: Path, flow_id: str) -> dict[str, Any] | None:
-        df = self._load_stream_df(stream_csv)
-        if df is None or df.empty:
-            return None
-
+    def _build_feature_row(
+        self,
+        df: pd.DataFrame,
+        flow_id: str,
+        forward_mask: pd.Series,
+    ) -> dict[str, Any]:
         df = df.reset_index(drop=True)
-        forward_mask = self._forward_mask(df).reset_index(drop=True)
+        forward_mask = forward_mask.reset_index(drop=True).astype(bool)
 
         timestamps = df["timestamp"].astype(float).reset_index(drop=True)
         lengths = df["packet_length"].astype(float).reset_index(drop=True)
@@ -220,7 +223,7 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         brst_duration_max = float(burst_durations.max()) if not burst_durations.empty else 0.0
         brst_duration_std = float(burst_durations.std(ddof=1)) if len(burst_durations) > 1 else 0.0
 
-        features: dict[str, Any] = {
+        return {
             "flow_id": flow_id,
             "prefix_duration": prefix_duration,
             "prefix_bytes_per_second": self._safe_div(total_bytes, prefix_duration),
@@ -238,7 +241,10 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             "burst_count_per_second": self._safe_div(len(bursts), prefix_duration),
             "burst_mean_bytes_per_packet": float(burst_bytes_per_packet.mean()) if not burst_bytes_per_packet.empty else 0.0,
             "burst_std_bytes_per_packet": float(burst_bytes_per_packet.std(ddof=1)) if len(burst_bytes_per_packet) > 1 else 0.0,
-            "burst_top1_byte_share": self._safe_div(float(burst_bytes.max()) if not burst_bytes.empty else 0.0, float(burst_bytes.sum()) if not burst_bytes.empty else 0.0),
+            "burst_top1_byte_share": self._safe_div(
+                float(burst_bytes.max()) if not burst_bytes.empty else 0.0,
+                float(burst_bytes.sum()) if not burst_bytes.empty else 0.0,
+            ),
             "burst_interval_cv": self._coefficient_of_variation(burst_intervals),
             "burst_interval_iqr_ratio": self._iqr_ratio(burst_intervals),
             "burst_duration_cv": self._coefficient_of_variation(burst_durations),
@@ -264,9 +270,10 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             "BRST_DURATION_STD": brst_duration_std,
         }
 
+    def _save_feature_row(self, features: dict[str, Any]) -> None:
         with session_scope() as db:
             flow_registry = FlowRegistry(
-                flow_id=flow_id,
+                flow_id=features["flow_id"],
                 pipeline_name="HTTPS",
             )
             flow_registry.save(db)
@@ -274,7 +281,93 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             stats_row = HTTPSFlowStats(**features)
             stats_row.save(db)
 
-        return features
+    def _write_directional_csv(self, df: pd.DataFrame, target_path: Path) -> Path:
+        df.to_csv(target_path, index=False)
+        return target_path
+
+    def _extract_single_direction(
+        self,
+        directional_df: pd.DataFrame,
+        directional_flow_id: str,
+        directional_csv_path: Path,
+    ) -> dict[str, Any] | None:
+        if directional_df.empty:
+            return None
+
+        if self.save_directional_csvs:
+            self._write_directional_csv(directional_df, directional_csv_path)
+
+        directional_mask = pd.Series([True] * len(directional_df), dtype=bool)
+        features = self._build_feature_row(
+            df=directional_df,
+            flow_id=directional_flow_id,
+            forward_mask=directional_mask,
+        )
+        self._save_feature_row(features)
+
+        return {
+            "flow_id": directional_flow_id,
+            "csv_path": str(directional_csv_path) if self.save_directional_csvs else None,
+        }
+
+    def extract(self, stream_csv: Path, flow_id: str) -> dict[str, Any] | None:
+        df = self._load_stream_df(stream_csv)
+        if df is None or df.empty:
+            return None
+
+        df = df.reset_index(drop=True)
+        bidirectional_forward_mask = self._forward_mask(df).reset_index(drop=True)
+
+        if not self.split_directional_streams:
+            features = self._build_feature_row(
+                df=df,
+                flow_id=flow_id,
+                forward_mask=bidirectional_forward_mask,
+            )
+            self._save_feature_row(features)
+            return {
+                "saved_flow_ids": [flow_id],
+                "saved_csv_paths": [str(stream_csv)],
+                "count": 1,
+            }
+
+        saved_flow_ids: list[str] = []
+        saved_csv_paths: list[str] = []
+
+        forward_df = df[bidirectional_forward_mask].reset_index(drop=True)
+        forward_flow_id = f"{flow_id}_fwd"
+        forward_csv_path = stream_csv.with_name(f"{forward_flow_id}.csv")
+        forward_result = self._extract_single_direction(
+            directional_df=forward_df,
+            directional_flow_id=forward_flow_id,
+            directional_csv_path=forward_csv_path,
+        )
+        if forward_result is not None:
+            saved_flow_ids.append(forward_result["flow_id"])
+            if forward_result["csv_path"] is not None:
+                saved_csv_paths.append(forward_result["csv_path"])
+
+        reverse_df = df[~bidirectional_forward_mask].reset_index(drop=True)
+        reverse_flow_id = f"{flow_id}_rev"
+        reverse_csv_path = stream_csv.with_name(f"{reverse_flow_id}.csv")
+        reverse_result = self._extract_single_direction(
+            directional_df=reverse_df,
+            directional_flow_id=reverse_flow_id,
+            directional_csv_path=reverse_csv_path,
+        )
+        if reverse_result is not None:
+            saved_flow_ids.append(reverse_result["flow_id"])
+            if reverse_result["csv_path"] is not None:
+                saved_csv_paths.append(reverse_result["csv_path"])
+
+        if not saved_flow_ids:
+            return None
+
+        return {
+            "saved_flow_ids": saved_flow_ids,
+            "saved_csv_paths": saved_csv_paths,
+            "count": len(saved_flow_ids),
+        }
 
     def _build_bursts(self, df: pd.DataFrame, forward_mask: pd.Series) -> list[Burst]:
         bursts: list[Burst] = []

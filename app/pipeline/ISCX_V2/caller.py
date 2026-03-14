@@ -10,7 +10,6 @@ from app.pipeline.ISCX_V2.Initializer import ISCXV2Inference
 from app.pipeline.ISCX_V2.loader import get_flow_features_df
 
 
-BUNDLE_DIR = r"app/pipeline/HTTPS/v7/bundle"
 
 
 def _record_to_result(record: PredictionResult) -> dict[str, Any]:
@@ -44,8 +43,7 @@ def _extract_embedding(row: pd.Series) -> list[float] | None:
     return [float(row[col]) for col in emb_cols]
 
 
-def hybrid_pipeline(flow_id: str) -> Dict[str, Any]:
-    pipeline = ISCXV2Inference(BUNDLE_DIR)
+def hybrid_pipeline(flow_id: str, pipeline: ISCXV2Inference) -> Dict[str, Any]:
     df = get_flow_features_df(flow_id, pipeline)
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame([df])

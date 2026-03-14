@@ -17,9 +17,9 @@ def _to_list(x):
     return x
 
 
-def hybrid_pipeline(flow_id: str) -> Dict[str, Any]:
+def hybrid_pipeline(flow_id: str, pipline) -> Dict[str, Any]:
     """Fetches features, predicts using DeepEncryptNet, and saves results."""
-
+    _ = pipline
     df = get_flow_features_df(flow_id)
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame([df])

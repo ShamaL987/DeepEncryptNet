@@ -151,7 +151,12 @@ class PacketStreamDivider:
             stream.features_extracted = True
             self.total_extracted_streams += 1
             if self.prediction_queue is not None:
-                self.prediction_queue.enqueue(stream.stream_id)
+                saved_flow_ids = stats_saved.get("saved_flow_ids")
+                if stats_saved.get("saved_flow_ids"):
+                    for i in saved_flow_ids:
+                        self.prediction_queue.enqueue(i)
+                else:
+                    self.prediction_queue.enqueue(stream.stream_id)
             return True
 
         return False

@@ -50,6 +50,8 @@ class PacketStreamDivider:
         output_dir: Path,
         extract_features: bool,
         prediction_queue: PredictionQueue,
+        stats_callback=None,
+        feature_latency_callback=None,
         idle_timeout_sec: float = 30.0,
         max_packets: int = 100,
         max_duration_sec: float = 20.0,
@@ -58,6 +60,8 @@ class PacketStreamDivider:
         self.output_dir = output_dir
         self.extract_features = extract_features
         self.prediction_queue = prediction_queue
+        self.stats_callback = stats_callback
+        self.feature_latency_callback = feature_latency_callback
 
         self.idle_timeout_sec = idle_timeout_sec
         self.max_packets = max_packets
@@ -65,6 +69,7 @@ class PacketStreamDivider:
 
         self.active_streams: Dict[FlowKey, ActiveStream] = {}
         self.stream_counter = 0
+        self.finalized_flows_counter = 0
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.extractor = StreamFeatureExtractor(idle_threshold=1.0)
@@ -105,9 +110,15 @@ class PacketStreamDivider:
 
     def _finalize_stream(self, stream: ActiveStream) -> None:
         stream.writer.close()
+        self.finalized_flows_counter += 1
 
         if self.extract_features and not stream.features_extracted:
+            started = time.perf_counter()
             stats_saved = self.extractor.extract(stream.writer.path, stream.stream_id)
+            latency_ms = (time.perf_counter() - started) * 1000.0
+            if self.feature_latency_callback:
+                self.feature_latency_callback(latency_ms)
+
             if stats_saved:
                 stream.features_extracted = True
                 self.prediction_queue.enqueue(stream.stream_id)
@@ -142,6 +153,8 @@ class PacketStreamDivider:
             if not header:
                 return
 
+            packet_count = 0
+
             for row in reader:
                 record = dict(zip(header, row))
                 ts = self._parse_epoch_timestamp(record.get("timestamp"))
@@ -160,8 +173,12 @@ class PacketStreamDivider:
                 stream.writer.append(row)
                 stream.packet_count += 1
                 stream.last_seen_ts = ts
+                packet_count += 1
 
         # finalize remaining streams
         for stream in list(self.active_streams.values()):
             self._finalize_stream(stream)
         self.active_streams.clear()
+
+        if self.stats_callback:
+            self.stats_callback(packet_count, self.finalized_flows_counter)

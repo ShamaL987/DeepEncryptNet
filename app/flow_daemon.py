@@ -7,7 +7,14 @@ from app.pipeline.prediction_queue import PredictionQueue
 from app.settings import log
 
 
-def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
+def run_flow_daemon(
+    cfg: dict,
+    stop_event: threading.Event,
+    stats_callback=None,
+    feature_latency_callback=None,
+    result_callback=None,
+    error_callback=None,
+) -> None:
     ready_dir = Path(cfg["ready_dir"])
     processing_dir = Path(cfg["processing_dir"])
     processed_dir = Path(cfg["processed_dir"])
@@ -15,7 +22,10 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
     processing_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    prediction_queue = PredictionQueue()
+    prediction_queue = PredictionQueue(
+        result_callback=result_callback,
+        error_callback=error_callback,
+    )
 
     log.info("[FlowDaemon] Watching batch directory")
 
@@ -39,6 +49,8 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
                 output_dir=Path(cfg["streams_dir"]),
                 extract_features=cfg.get("enable_stats", True),
                 prediction_queue=prediction_queue,
+                stats_callback=stats_callback,
+                feature_latency_callback=feature_latency_callback,
                 idle_timeout_sec=cfg.get("idle_timeout_sec", 30.0),
                 max_packets=cfg.get("max_packets", 100),
                 max_duration_sec=cfg.get("max_duration_sec", 20.0),

@@ -1,9 +1,9 @@
 {
   "flow_daemon": {
     "ready_dir": "D:/FYP_DEV/tracker-exe/files/captures/ready",
-    "processing_dir": "D:/FYP_DEV/tracker-exe/files/processing/processing_dir",
-    "processed_dir": "D:/FYP_DEV/tracker-exe/files/processing/processed_dir",
-    "streams_dir": "D:/FYP_DEV/tracker-exe/files/processing/streams_dir",
+    "processing_dir": "files/processing/processing_dir",
+    "processed_dir": "files/processing/processed_dir",
+    "streams_dir": "files/processing/streams_dir",
     "max_packets": 100,
     "max_duration_sec": 20.0,
     "auto_start": false,
@@ -11,6 +11,6 @@
     "idle_timeout_sec": 10.0,
     "poll_interval_sec": 1.0,
     "enable_stats": true,
-    "feature_pipeline": "ISCX_V1"
+    "feature_pipeline": "HTTPS"
   }
 }

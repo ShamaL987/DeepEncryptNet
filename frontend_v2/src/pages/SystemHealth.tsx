@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadges";
@@ -5,10 +6,15 @@ import { systemHealth, confidenceTrend, routedPctTrend, pipelineStatus } from "@
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts";
-import { Activity, Cpu, Clock, AlertTriangle, Server, Database } from "lucide-react";
+import { Activity, Cpu, Clock, AlertTriangle, Server, Database, Play, Square, RotateCcw, Settings } from "lucide-react";
 import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
 import { PipelineSkeleton, MetricSkeleton, ChartSkeleton } from "@/components/Skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { PipelineConfigPanel } from "@/components/PipelineConfigPanel";
+import { toast } from "sonner";
 
 function MetricCard({ label, value, unit, icon: Icon }: { label: string; value: string | number; unit?: string; icon: React.ElementType }) {
   return (
@@ -26,6 +32,22 @@ function MetricCard({ label, value, unit, icon: Icon }: { label: string; value: 
 
 export default function SystemHealth() {
   const isLoading = useSimulatedLoading(1000);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [pipelineRunning, setPipelineRunning] = useState(true);
+  const [startFrom, setStartFrom] = useState("raw-packets");
+
+  const handleStart = () => {
+    setPipelineRunning(true);
+    toast.success("Pipeline started", { description: `Starting from: ${startFrom.replace(/-/g, " ")}` });
+  };
+  const handleStop = () => {
+    setPipelineRunning(false);
+    toast.info("Pipeline stopped");
+  };
+  const handleRestart = () => {
+    setPipelineRunning(true);
+    toast.success("Pipeline restarted", { description: "Configuration reloaded" });
+  };
 
   return (
     <DashboardLayout>
@@ -38,6 +60,7 @@ export default function SystemHealth() {
         {isLoading ? (
           <div className="space-y-6">
             <PipelineSkeleton />
+            <Skeleton className="h-10 w-full rounded-md" />
             <Card className="bg-card border-border">
               <CardHeader className="pb-2 pt-4 px-4"><Skeleton className="h-4 w-28" /></CardHeader>
               <CardContent className="px-4 pb-4 space-y-3">
@@ -66,7 +89,7 @@ export default function SystemHealth() {
         ) : (
           <>
             {/* Pipeline Status */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {pipelineStatus.map((s, i) => (
                 <div key={s.stage} className="flex items-center gap-2">
                   <div className="flex items-center gap-1.5 bg-secondary px-3 py-1.5 rounded-md">
@@ -77,6 +100,70 @@ export default function SystemHealth() {
                 </div>
               ))}
             </div>
+
+            {/* Pipeline Actions & Start-From */}
+            <Card className="bg-card border border-primary/30 shadow-[0_0_15px_-3px_hsl(210,100%,56%,0.15)]">
+              <CardContent className="p-5">
+                <div className="flex flex-col md:flex-row md:items-end gap-5">
+                  {/* Action Buttons */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: pipelineRunning ? 'hsl(142,70%,49%)' : 'hsl(0,72%,51%)' }} />
+                      <p className="text-xs font-semibold text-foreground uppercase tracking-wider">Pipeline Controls</p>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ backgroundColor: pipelineRunning ? 'hsla(142,70%,49%,0.15)' : 'hsla(0,72%,51%,0.15)', color: pipelineRunning ? 'hsl(142,70%,49%)' : 'hsl(0,72%,51%)' }}>
+                        {pipelineRunning ? "RUNNING" : "STOPPED"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Button
+                        onClick={handleStart}
+                        disabled={pipelineRunning}
+                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
+                      >
+                        <Play className="h-4 w-4" /> Start
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleStop}
+                        disabled={!pipelineRunning}
+                        className="gap-1.5 shadow-md"
+                      >
+                        <Square className="h-4 w-4" /> Stop
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={handleRestart}
+                        className="gap-1.5 shadow-md"
+                      >
+                        <RotateCcw className="h-4 w-4" /> Restart
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setConfigOpen(true)}
+                        className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                      >
+                        <Settings className="h-4 w-4" /> Change Configuration
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Start From */}
+                  <div className="space-y-1.5 md:ml-auto">
+                    <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Pipeline Start From</Label>
+                    <Select value={startFrom} onValueChange={setStartFrom}>
+                      <SelectTrigger className="w-[220px] h-9 bg-secondary/50 border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="raw-packets">Raw Packets</SelectItem>
+                        <SelectItem value="pre-calculated-statistics">Pre-calculated Statistics</SelectItem>
+                        <SelectItem value="predictions">Predictions</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Pipeline Health Metrics */}
             <Card className="bg-card border-border">
@@ -171,6 +258,8 @@ export default function SystemHealth() {
           </>
         )}
       </div>
+
+      <PipelineConfigPanel open={configOpen} onOpenChange={setConfigOpen} />
     </DashboardLayout>
   );
 }

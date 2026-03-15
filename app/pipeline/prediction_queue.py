@@ -2,6 +2,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 from app.pipeline.HTTPS.Initializer import HTTPSInference
 from app.pipeline.ISCX_V2.Initializer import ISCXV2Inference
+from app.pipeline.registry import get_pipeline_predict_fn, build_pipeline_inference
 from app.settings import log
 
 
@@ -9,32 +10,9 @@ class PredictionQueue:
     def __init__(self, pipeline_name: str, max_workers: int = 2):
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.pipeline_name = pipeline_name
-        self.predict_fn = self._resolve_predict_fn()
-        self.pipeline = self._build_pipeline()
+        self.predict_fn = get_pipeline_predict_fn(pipeline_name)
+        self.pipeline = build_pipeline_inference(pipeline_name)
 
-    def _resolve_predict_fn(self):
-        if self.pipeline_name == "ISCX_V1":
-            from app.pipeline.ISCX_V1.caller import hybrid_pipeline
-            return hybrid_pipeline
-
-        if self.pipeline_name == "ISCX_V2":
-            from app.pipeline.ISCX_V2.caller import hybrid_pipeline
-            return hybrid_pipeline
-
-        if self.pipeline_name == "HTTPS":
-            from app.pipeline.HTTPS.caller import hybrid_pipeline
-            return hybrid_pipeline
-
-        raise ValueError(f"Unsupported pipeline_name: {self.pipeline_name}")
-
-    def _build_pipeline(self):
-        if self.pipeline_name == "HTTPS":
-            return HTTPSInference()
-        if self.pipeline_name == "ISCX_V2":
-            return ISCXV2Inference()
-        if self.pipeline_name == "ISCX_V1":
-            return None
-        return None
 
     def enqueue(self, flow_id: str) -> None:
         self.executor.submit(self._predict, flow_id)

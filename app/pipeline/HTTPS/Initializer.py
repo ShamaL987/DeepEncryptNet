@@ -10,15 +10,13 @@ import torch
 from app.pipeline.HTTPS.helpers import _read_json, _ensure_df, _coerce_numeric, _softmax_np, _probs_to_state
 from app.pipeline.HTTPS.models import FeatureCNN_Attn, RLDecisionLayer
 
-BUNDLE_DIR = Path(r"app/pipeline/HTTPS/v8/bundle")
-
 
 class HTTPSInference:
     """Inference that requires ONLY kept_features.json columns in the incoming DataFrame."""
 
-    def __init__(self, device: Optional[torch.device] = None):
+    def __init__(self, bundle_dir, device: Optional[torch.device] = None):
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.bundle_dir = BUNDLE_DIR
+        self.bundle_dir = bundle_dir
 
         self.logs_dir = self.bundle_dir / "logs"
         self.preprocess_dir = self.bundle_dir / "preprocess"

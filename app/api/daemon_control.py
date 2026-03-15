@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.database.db import get_db
 from app.services.flow_daemon_controller import FlowDaemonController
+from app.services.health import calculate_pipeline_health_metrics
 from app.settings import SettingsManager
 
 router = APIRouter(prefix="/api/daemon", tags=["Flow Daemon"])
@@ -14,7 +17,7 @@ router = APIRouter(prefix="/api/daemon", tags=["Flow Daemon"])
 
 class FlowDaemonConfigPayload(BaseModel):
     config: dict[str, Any]
-    restart_if_running: bool = False
+    restart_if_running: bool = True
 
 
 def get_controller(request: Request) -> FlowDaemonController:
@@ -57,7 +60,12 @@ def stop_flow_daemon(request: Request):
 
 @router.post("/restart")
 def restart_flow_daemon(request: Request):
+    settings_manager = get_settings_manager_from_request(request)
     controller = get_controller(request)
+
+    settings_manager.reload()
+    controller.update_config(settings_manager.get_flow_daemon_config())
+
     return controller.restart()
 
 
@@ -77,15 +85,31 @@ def update_flow_daemon_config(payload: FlowDaemonConfigPayload, request: Request
     controller = get_controller(request)
 
     updated_runtime_config = settings_manager.update_runtime_flow_daemon_config(payload.config)
+    resolved_flow_config = settings_manager.get_flow_daemon_config()
+    controller_result = controller.update_config(resolved_flow_config)
 
-    merged_flow_config = settings_manager.get_flow_daemon_config()
-    result = controller.update_config(merged_flow_config)
-
+    restart_result = None
     if payload.restart_if_running and controller.is_running:
-        controller.restart()
+        restart_result = controller.restart()
 
     return {
         "message": "Flow daemon runtime config updated successfully",
-        "config": updated_runtime_config,
-        "result": result,
+        "runtime_flow_daemon_config": updated_runtime_config,
+        "resolved_flow_daemon_config": resolved_flow_config,
+        "controller_update": controller_result,
+        "restart": restart_result,
+    }
+
+@router.get("/overview")
+def get_flow_overview(request: Request, db: Session = Depends(get_db)):
+    controller = get_controller(request)
+    settings_manager = get_settings_manager_from_request(request)
+
+    # settings_manager.runtime_config()['feature_pipeline']
+
+    return {
+        "status": "running" if controller.is_running else "stopped",
+        "is_running": controller.is_running,
+        "runtime_config": settings_manager.get_runtime_config(),
+        "health": calculate_pipeline_health_metrics(db)
     }

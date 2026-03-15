@@ -154,9 +154,11 @@ class SettingsManager:
             if not isinstance(current_flow_daemon, dict):
                 current_flow_daemon = {}
 
-            current_flow_daemon.update(updates)
-            self.runtime_config["flow_daemon"] = current_flow_daemon
+            for key, value in updates.items():
+                if key in current_flow_daemon:
+                    current_flow_daemon[key] = value
 
+            self.runtime_config["flow_daemon"] = current_flow_daemon
             self._write_runtime_json(self.runtime_config)
             self.resolved_config = self._build_resolved_config()
 

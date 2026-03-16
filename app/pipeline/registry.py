@@ -18,14 +18,7 @@ class PipelineSpec:
 
 
 PIPELINE_SPECS: dict[str, PipelineSpec] = {
-    "ISCX_V1": PipelineSpec(
-        name="ISCX_V1",
-        caller_import="app.pipeline.ISCX_V1.caller",
-        caller_fn="hybrid_pipeline",
-        bundle_dir=Path("app/pipeline/ISCX_V1/artifacts_manifest"),
-        initializer_import=None,
-        initializer_class=None,
-    ),
+
     "ISCX_V2": PipelineSpec(
         name="ISCX_V2",
         caller_import="app.pipeline.ISCX_V2.caller",

@@ -1,7 +1,4 @@
 from concurrent.futures.thread import ThreadPoolExecutor
-
-from app.pipeline.HTTPS.Initializer import HTTPSInference
-from app.pipeline.ISCX_V2.Initializer import ISCXV2Inference
 from app.pipeline.registry import get_pipeline_predict_fn, build_pipeline_inference
 from app.settings import log
 

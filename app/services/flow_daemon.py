@@ -51,7 +51,7 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
             processed_path = processed_dir / processing_path.name
             processing_path.replace(processed_path)
 
-            log.info(f"[FlowDaemon] Finished {processed_path.name}")
+            time.sleep(float(cfg.get("timeout", 0.0)))
 
     except Exception as exc:
         log.exception("[FlowDaemon] Fatal error", exc_info=exc)

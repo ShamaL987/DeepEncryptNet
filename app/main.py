@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
-from app.api.dashboard import router as dashboard_router
 from app.api.daemon_control import router as daemon_control_router
 from app.database.init_db import ensure_schema
 from app.services.flow_daemon_controller import FlowDaemonController
@@ -51,7 +50,6 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    application.include_router(dashboard_router)
     application.include_router(daemon_control_router)
 
     base_dir = Path(__file__).resolve().parent

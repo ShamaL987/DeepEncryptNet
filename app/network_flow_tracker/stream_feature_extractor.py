@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from app.database.db import session_scope
-from app.database.models import ISCXFlowStatsV2, FlowRegistry, ISCXFlowStatsV1, HTTPSFlowStats
+from app.database.models import ISCXFlowStatsV2, FlowRegistry, HTTPSFlowStats
 
 
 @dataclass
@@ -430,95 +430,6 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         return intervals
 
 
-class ISCXV1StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
-    def extract(self, stream_csv: Path, flow_id: str) -> dict[str, Any] | None:
-        df = self._load_stream_df(stream_csv)
-        if df is None or len(df) < 2:
-            return None
-
-        timestamps = df["timestamp"].astype(float).reset_index(drop=True)
-        lengths = df["packet_length"].astype(float).reset_index(drop=True)
-
-        start_time = float(timestamps.iloc[0])
-        end_time = float(timestamps.iloc[-1])
-        duration = end_time - start_time
-
-        if duration <= 0:
-            return None
-
-        total_bytes = float(lengths.sum())
-        total_packets = len(df)
-
-        flow_bytes_per_second = total_bytes / duration
-        flow_packets_per_second = total_packets / duration
-
-        flow_iat = timestamps.diff().dropna().reset_index(drop=True)
-        flow_stats = self._stats(flow_iat)
-
-        forward_mask = self._forward_mask(df)
-
-        forward_timestamps = timestamps[forward_mask].reset_index(drop=True)
-        reverse_timestamps = timestamps[~forward_mask].reset_index(drop=True)
-
-        forward_iat = forward_timestamps.diff().dropna().reset_index(drop=True)
-        reverse_iat = reverse_timestamps.diff().dropna().reset_index(drop=True)
-
-        forward_stats = self._stats(forward_iat)
-        reverse_stats = self._stats(reverse_iat)
-
-        max_active, std_active = self._active_stats(flow_iat)
-
-        with session_scope() as db:
-            flow_registry = FlowRegistry(
-                flow_id=flow_id,
-                pipeline_name="ISCX_V1",
-            )
-            flow_registry.save(db)
-
-            stats_row = ISCXFlowStatsV1(
-                flow_id=flow_id,
-                start_time=start_time,
-                end_time=end_time,
-                duration=duration,
-                flowBytesPerSecond=flow_bytes_per_second,
-                flowPktsPerSecond=flow_packets_per_second,
-                max_active=max_active,
-                std_active=std_active,
-                max_biat=reverse_stats["max"],
-                mean_biat=reverse_stats["mean"],
-                min_biat=reverse_stats["min"],
-                total_biat=reverse_stats["total"],
-                max_fiat=forward_stats["max"],
-                mean_fiat=forward_stats["mean"],
-                min_fiat=forward_stats["min"],
-                total_fiat=forward_stats["total"],
-                max_flowiat=flow_stats["max"],
-                mean_flowiat=flow_stats["mean"],
-                min_flowiat=flow_stats["min"],
-                std_flowiat=flow_stats["std"],
-            )
-            stats_row.save(db)
-
-        return {
-            "flow_id": flow_id,
-            "duration": float(duration),
-            "flowBytesPerSecond": float(flow_bytes_per_second),
-            "flowPktsPerSecond": float(flow_packets_per_second),
-            "max_active": float(max_active),
-            "max_biat": float(reverse_stats["max"]),
-            "max_fiat": float(forward_stats["max"]),
-            "max_flowiat": float(flow_stats["max"]),
-            "mean_biat": float(reverse_stats["mean"]),
-            "mean_fiat": float(forward_stats["mean"]),
-            "mean_flowiat": float(flow_stats["mean"]),
-            "min_biat": float(reverse_stats["min"]),
-            "min_fiat": float(forward_stats["min"]),
-            "min_flowiat": float(flow_stats["min"]),
-            "std_active": float(std_active),
-            "std_flowiat": float(flow_stats["std"]),
-            "total_biat": float(reverse_stats["total"]),
-            "total_fiat": float(forward_stats["total"]),
-        }
 
 
 class ISCXV2StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
@@ -622,9 +533,6 @@ class PipelineStreamFeatureExtractorFactory:
 
         if normalized_name == "HTTPS":
             return HTTPSStreamFeatureExtractor(burst_gap_threshold=idle_threshold)
-
-        if normalized_name == "ISCX_V1":
-            return ISCXV1StreamFeatureExtractor(idle_threshold=idle_threshold)
 
         if normalized_name == "ISCX_V2":
             return ISCXV2StreamFeatureExtractor(idle_threshold=idle_threshold)

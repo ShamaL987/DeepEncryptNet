@@ -1,9 +1,41 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from "react";
 
-export const usePolling = (fn: () => void, intervalMs: number) => {
+export function usePolling<T>(
+    fetcher: () => Promise<T>,
+    intervalMs: number
+) {
+    const [data, setData] = useState<T | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const mountedRef = useRef(true);
+
     useEffect(() => {
-        fn()
-        const id = setInterval(fn, intervalMs)
-        return () => clearInterval(id)
-    }, [])
+        mountedRef.current = true;
+
+        const run = async () => {
+            try {
+                const result = await fetcher();
+                if (!mountedRef.current) return;
+                setData(result);
+                setError(null);
+            } catch (err) {
+                if (!mountedRef.current) return;
+                setError(err instanceof Error ? err.message : "Failed to fetch");
+            } finally {
+                if (mountedRef.current) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        run();
+        const id = setInterval(run, intervalMs);
+
+        return () => {
+            mountedRef.current = false;
+            clearInterval(id);
+        };
+    }, [fetcher, intervalMs]);
+
+    return { data, loading, error };
 }

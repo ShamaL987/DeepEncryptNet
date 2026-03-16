@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useEffect, useMemo, useState} from "react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
 } from "@/components/ui/sheet";
@@ -11,50 +11,31 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import {PipelineConfig} from "@/mappers/systemHealthMapper.ts";
 
-export interface PipelineConfig {
-  ready_dir: string;
-  processing_dir: string;
-  processed_dir: string;
-  streams_dir: string;
-  max_packets: number;
-  max_duration_sec: number;
-  idle_timeout_sec: number;
-  poll_interval_sec: number;
-  auto_start: boolean;
-  enable_stats: boolean;
-  mode: string;
-  feature_pipeline: string;
-}
-
-const defaultConfig: PipelineConfig = {
-  ready_dir: "/data/ready",
-  processing_dir: "/data/processing",
-  processed_dir: "/data/processed",
-  streams_dir: "/data/streams",
-  max_packets: 10000,
-  max_duration_sec: 120,
-  idle_timeout_sec: 30,
-  poll_interval_sec: 5,
-  auto_start: true,
-  enable_stats: true,
-  mode: "live",
-  feature_pipeline: "default",
-};
 
 const modeOptions = ["live", "batch", "replay"];
 const featurePipelineOptions = ["default", "extended", "minimal", "custom"];
 
 interface Props {
+  config: PipelineConfig;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function PipelineConfigPanel({ open, onOpenChange }: Props) {
-  const [config, setConfig] = useState<PipelineConfig>(defaultConfig);
+export function PipelineConfigPanel({config, open, onOpenChange }: Props) {
+
+
+  const [localConfig, setLocalConfig] = useState<PipelineConfig>(config);
+
+  useEffect(() => {
+    if (config) {
+      setLocalConfig(config);
+    }
+  }, [config, open]);
 
   const update = <K extends keyof PipelineConfig>(key: K, value: PipelineConfig[K]) => {
-    setConfig(prev => ({ ...prev, [key]: value }));
+    setLocalConfig(prev => ({ ...prev, [key]: value }));
   };
 
   const handleSave = () => {
@@ -78,7 +59,7 @@ export function PipelineConfigPanel({ open, onOpenChange }: Props) {
               <div key={key} className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">{key}</Label>
                 <Input
-                  value={config[key]}
+                  value={localConfig[key]}
                   onChange={e => update(key, e.target.value)}
                   className="h-9 text-sm font-mono bg-secondary/50 border-border"
                 />
@@ -96,12 +77,13 @@ export function PipelineConfigPanel({ open, onOpenChange }: Props) {
               ["max_duration_sec", "Max Duration (sec)"],
               ["idle_timeout_sec", "Idle Timeout (sec)"],
               ["poll_interval_sec", "Poll Interval (sec)"],
+              ["system_delay", "System Delay (sec)"],
             ] as const).map(([key, label]) => (
               <div key={key} className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">{label}</Label>
                 <Input
                   type="number"
-                  value={config[key]}
+                  value={localConfig[key]}
                   onChange={e => update(key, Number(e.target.value))}
                   className="h-9 text-sm font-mono bg-secondary/50 border-border"
                 />
@@ -121,7 +103,7 @@ export function PipelineConfigPanel({ open, onOpenChange }: Props) {
               <div key={key} className="flex items-center justify-between">
                 <Label className="text-sm text-foreground">{label}</Label>
                 <Switch
-                  checked={config[key]}
+                  checked={localConfig[key]}
                   onCheckedChange={v => update(key, v)}
                 />
               </div>

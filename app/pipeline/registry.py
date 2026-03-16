@@ -98,7 +98,7 @@ def get_pipeline_model_display_config(pipeline_name: str) -> dict[str, Any]:
         "pipeline_version": run_card.get("run_name"),
         "temperature_T": run_card.get("temperature_T"),
         "use_temperature_for_routing": run_card.get("use_temperature_for_routing"),
-        "coverage": rl_selected["val"].get("coverage"),
-        "accepted_accuracy": rl_selected["val"].get("acc_accept"),
+        "coverage": round(rl_selected["val"].get("coverage"),2),
+        "accepted_accuracy": round(rl_selected["val"].get("acc_accept"), 2),
         "accepted_macro_f1": rl_selected["val"].get("macro_f1_accept"),
     }

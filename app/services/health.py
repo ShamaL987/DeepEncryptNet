@@ -108,15 +108,20 @@ def calculate_pipeline_health_metrics(
         .all()
     )
 
+    first_prediction = (
+        prediction_query
+        .order_by(PredictionResult.created_at.asc())
+        .first()
+    )
+
     confidence_values = [float(row.max_p) for row in recent_prediction_rows if row.max_p is not None]
-    margin_values = [float(row.margin) for row in recent_prediction_rows if row.margin is not None]
-    entropy_values = [float(row.entropy) for row in recent_prediction_rows if row.entropy is not None]
 
     accepted_count = sum(1 for row in recent_prediction_rows if int(row.action) == 0)
     routed_count = sum(1 for row in recent_prediction_rows if int(row.action) == 1)
     total_prediction_rows = len(recent_prediction_rows)
 
     return {
+
         "flows_per_sec": float(recent_flow_count) / float(window_seconds),
         "predictions_per_sec": float(recent_prediction_count) / float(window_seconds),
         "latest_flow_lag_ms": lag_ms_from_now(latest_flow.created_at if latest_flow else None),
@@ -125,15 +130,16 @@ def calculate_pipeline_health_metrics(
         "flow_to_prediction_lag_p95_ms": percentile_95(flow_to_prediction_lags_ms),
         "confidence_avg": average_or_none(confidence_values),
         "confidence_p95": percentile_95(confidence_values),
-        "margin_avg": average_or_none(margin_values),
-        "margin_p95": percentile_95(margin_values),
-        "entropy_avg": average_or_none(entropy_values),
-        "entropy_p95": percentile_95(entropy_values),
         "accepted_count": accepted_count,
         "routed_count": routed_count,
         "routed_percent": (
             float(routed_count) / float(total_prediction_rows) * 100.0
             if total_prediction_rows > 0
             else 0.0
+        ),
+        "prediction_uptime_sec": (
+            (utc_now() - first_prediction.created_at).total_seconds()
+            if first_prediction and first_prediction.created_at
+            else None
         ),
     }

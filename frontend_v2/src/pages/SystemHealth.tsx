@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadges";
@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { PipelineConfigPanel } from "@/components/PipelineConfigPanel";
 import { toast } from "sonner";
+import {fetchOverview, startPipeline, stopPipeline} from "@/api/healthApi.ts";
+import {usePolling} from "@/hooks/usePolling.ts";
+import {mapOverviewToViewModel} from "@/mappers/systemHealthMapper.ts";
 
 function MetricCard({ label, value, unit, icon: Icon }: { label: string; value: string | number; unit?: string; icon: React.ElementType }) {
   return (
@@ -33,19 +36,34 @@ function MetricCard({ label, value, unit, icon: Icon }: { label: string; value: 
 export default function SystemHealth() {
   const isLoading = useSimulatedLoading(1000);
   const [configOpen, setConfigOpen] = useState(false);
-  const [pipelineRunning, setPipelineRunning] = useState(true);
   const [startFrom, setStartFrom] = useState("raw-packets");
 
-  const handleStart = () => {
-    setPipelineRunning(true);
-    toast.success("Pipeline started", { description: `Starting from: ${startFrom.replace(/-/g, " ")}` });
+  const fetchOverviewStable = useCallback(() => fetchOverview(), []);
+  const { data, loading, error } = usePolling(fetchOverviewStable, 5000);
+
+  const viewModel = useMemo(() => {
+    return data ? mapOverviewToViewModel(data) : null;
+  }, [data]);
+
+  const pipelineRunning = viewModel?.pipelineRunning ?? false;
+  const config = viewModel?.config;
+
+  const handleStart = async () => {
+    try {
+      await startPipeline();
+    } catch (error) {
+      toast.error("Failed to start pipeline");
+    }
   };
-  const handleStop = () => {
-    setPipelineRunning(false);
-    toast.info("Pipeline stopped");
+
+  const handleStop = async () => {
+    try {
+      await stopPipeline();
+    } catch (error) {
+      toast.error("Failed to stop pipeline");
+    }
   };
   const handleRestart = () => {
-    setPipelineRunning(true);
     toast.success("Pipeline restarted", { description: "Configuration reloaded" });
   };
 
@@ -195,16 +213,16 @@ export default function SystemHealth() {
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <MetricCard label="Packets/sec" value={systemHealth.captureRate.toLocaleString()} icon={Server} />
-                  <MetricCard label="Flows/sec" value={systemHealth.flowCreationRate} icon={Database} />
-                  <MetricCard label="Feature Latency (avg)" value={systemHealth.featureExtractorLatency.avg} unit="ms" icon={Clock} />
-                  <MetricCard label="Feature Latency (p95)" value={systemHealth.featureExtractorLatency.p95} unit="ms" icon={Clock} />
-                  <MetricCard label="Inference Latency (avg)" value={systemHealth.inferenceLatency.avg} unit="ms" icon={Cpu} />
-                  <MetricCard label="Inference Latency (p95)" value={systemHealth.inferenceLatency.p95} unit="ms" icon={Cpu} />
+                  <MetricCard label="Uptime" value={viewModel?.healthCards.prediction_uptime_sec ?? 0} unit="ms" icon={Cpu} />
+                  <MetricCard label="Flows/sec" value={viewModel?.healthCards.flowsPerSec ?? 0} icon={Database} />
+                  <MetricCard label="Predictions/sec" value={viewModel?.healthCards.predictionsPerSec ?? 0} icon={Server} />
+                  <MetricCard label="Inference Latency (avg)" value={viewModel?.healthCards.inferenceLatencyAvg ?? 0} unit="ms" icon={Clock} />
+                  <MetricCard label="Inference Latency (p95)" value={viewModel?.healthCards.inferenceLatencyP95 ?? 0} unit="ms" icon={Clock} />
+                  <MetricCard label="Inference Latency (p95)" value={viewModel?.healthCards.routed_percent ?? 0} unit="ms" icon={Cpu} />
                 </div>
                 <div className="grid grid-cols-2 gap-3 mt-3">
-                  <MetricCard label="Errors (1h)" value={systemHealth.errors1h} icon={AlertTriangle} />
-                  <MetricCard label="Errors (24h)" value={systemHealth.errors24h} icon={AlertTriangle} />
+                  <MetricCard label="Errors (1h)" value={0} icon={AlertTriangle} />
+                  <MetricCard label="Errors (24h)" value={0} icon={AlertTriangle} />
                 </div>
               </CardContent>
             </Card>
@@ -219,10 +237,10 @@ export default function SystemHealth() {
               <CardContent className="px-4 pb-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    ["Model Version", systemHealth.modelVersion],
-                    ["Dataset", systemHealth.dataset],
-                    ["T_low", systemHealth.tLow.toString()],
-                    ["T_high", systemHealth.tHigh.toString()],
+                    ["Model Version",viewModel?.pipelineConfig.pipelineName],
+                    ["Model Name", viewModel?.pipelineConfig.pipelineVersion],
+                    ["Pipeline Accuracy (Overall)", viewModel?.pipelineConfig.acceptedAccuracy],
+                    ["Coverage", viewModel?.pipelineConfig.coverage],
                   ].map(([k, v]) => (
                     <div key={k as string}>
                       <p className="text-[10px] text-muted-foreground uppercase">{k}</p>
@@ -230,10 +248,10 @@ export default function SystemHealth() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-3">
-                  <p className="text-[10px] text-muted-foreground uppercase">Calibration</p>
-                  <p className="text-sm font-mono text-foreground mt-1">{systemHealth.calibration}</p>
-                </div>
+                {/*<div className="mt-3">*/}
+                {/*  <p className="text-[10px] text-muted-foreground uppercase">Calibration</p>*/}
+                {/*  <p className="text-sm font-mono text-foreground mt-1">{systemHealth.calibration}</p>*/}
+                {/*</div>*/}
               </CardContent>
             </Card>
 
@@ -280,7 +298,13 @@ export default function SystemHealth() {
         )}
       </div>
 
-      <PipelineConfigPanel open={configOpen} onOpenChange={setConfigOpen} />
+      {config && (
+          <PipelineConfigPanel
+              config={config}
+              open={configOpen}
+              onOpenChange={setConfigOpen}
+          />
+      )}
     </DashboardLayout>
   );
 }

@@ -1,5 +1,5 @@
 {
-  "run_name": "https_ratio_v1",
+  "run_name": "https_clf_v1",
   "dataset_name": "HTTPS_CLF",
   "created_at": "2026-03-13T18:53:38.133311Z",
   "device": "cuda",

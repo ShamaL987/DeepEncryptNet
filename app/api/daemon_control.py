@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database.db import get_db
+from app.pipeline.registry import get_pipeline_model_display_config
 from app.services.flow_daemon_controller import FlowDaemonController
 from app.services.health import calculate_pipeline_health_metrics
 from app.settings import SettingsManager
@@ -105,11 +106,13 @@ def get_flow_overview(request: Request, db: Session = Depends(get_db)):
     controller = get_controller(request)
     settings_manager = get_settings_manager_from_request(request)
 
-    # settings_manager.runtime_config()['feature_pipeline']
+    runtime_config = settings_manager.get_runtime_config()
+    pipline_name = runtime_config['flow_daemon'].get('feature_pipeline')
 
     return {
         "status": "running" if controller.is_running else "stopped",
         "is_running": controller.is_running,
         "runtime_config": settings_manager.get_runtime_config(),
-        "health": calculate_pipeline_health_metrics(db)
+        "health": calculate_pipeline_health_metrics(db),
+        "pipline_config": get_pipeline_model_display_config(pipline_name)
     }

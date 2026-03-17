@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadges";
 import {
-  kpiData, pipelineStatus, flowsOverTime, classifiedVsRouted,
+  kpiData, flowsOverTime, classifiedVsRouted,
   trafficMix, confidenceDistribution, alerts
 } from "@/data/mockData";
 import {
@@ -113,19 +113,19 @@ export default function Dashboard() {
         ) : (
           <>
             {/* Pipeline Status */}
-            <div className="flex items-center gap-2">
-              {pipelineStatus.map((s, i) => (
-                <div key={s.stage} className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-secondary px-3 py-1.5 rounded-md">
-                    <span className="text-xs text-foreground">{s.stage}</span>
-                    <StatusBadge status={s.status} />
-                  </div>
-                  {i < pipelineStatus.length - 1 && (
-                    <span className="text-muted-foreground text-xs">→</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            {/*<div className="flex items-center gap-2">*/}
+            {/*  {pipelineStatus.map((s, i) => (*/}
+            {/*    <div key={s.stage} className="flex items-center gap-2">*/}
+            {/*      <div className="flex items-center gap-1.5 bg-secondary px-3 py-1.5 rounded-md">*/}
+            {/*        <span className="text-xs text-foreground">{s.stage}</span>*/}
+            {/*        <StatusBadge status={s.status} />*/}
+            {/*      </div>*/}
+            {/*      {i < pipelineStatus.length - 1 && (*/}
+            {/*        <span className="text-muted-foreground text-xs">→</span>*/}
+            {/*      )}*/}
+            {/*    </div>*/}
+            {/*  ))}*/}
+            {/*</div>*/}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">

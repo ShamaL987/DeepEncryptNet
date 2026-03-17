@@ -31,14 +31,16 @@ export function DecisionBadge({ decision }: { decision: "Classified" | "Routed" 
   );
 }
 
-export function StatusBadge({ status }: { status: "OK" | "Degraded" | "Down" }) {
+export function StatusBadge({ status }: { status: "yes" | "no"}) {
   return (
     <Badge
       className={cn(
         "text-[10px] font-semibold border-0",
-        status === "OK" && "bg-status-ok/20 text-status-ok",
-        status === "Degraded" && "bg-status-degraded/20 text-status-degraded",
-        status === "Down" && "bg-status-error/20 text-status-error"
+        status === "yes" && "bg-status-ok/20 text-status-ok",
+          status === "no" && "bg-status-degraded/20 text-status-degraded",
+          // status === "OK" && "bg-status-ok/20 text-status-ok",
+          // status === "Degraded" && "bg-status-degraded/20 text-status-degraded",
+        // status === "Down" && "bg-status-error/20 text-status-error"
       )}
     >
       {status}

@@ -4,14 +4,14 @@
     "processing_dir": "files/processing/processing_dir",
     "processed_dir": "files/processing/processed_dir",
     "streams_dir": "files/processing/streams_dir",
-    "max_packets": 100,
-    "max_duration_sec": 20.0,
+    "max_packets": 10,
+    "max_duration_sec": 20,
     "auto_start": false,
     "mode": "live",
-    "idle_timeout_sec": 10.0,
-    "poll_interval_sec": 1.0,
+    "idle_timeout_sec": 10,
+    "poll_interval_sec": 1,
     "enable_stats": true,
     "feature_pipeline": "HTTPS",
-    "timeout": 20.0
+    "timeout": 20
   }
 }

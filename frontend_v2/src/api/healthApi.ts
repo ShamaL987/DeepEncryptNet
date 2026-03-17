@@ -28,3 +28,12 @@ export async function restartPipeline() {
     if (!response.ok) throw new Error("Failed to restart pipeline");
     return response.json();
 }
+
+export async function savePipeline(localConfig) {
+    const response = await fetch(
+        `${API_BASE}/config`, {
+            method: "PUT",headers: {"Content-Type": "application/json"
+            }, body: JSON.stringify({config: localConfig, restart_if_running: true}),});
+    if (!response.ok) throw new Error("Failed to save config");
+    return response.json();
+}

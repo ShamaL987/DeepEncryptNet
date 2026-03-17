@@ -1,21 +1,15 @@
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useMemo, useState} from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadges";
-import { systemHealth, confidenceTrend, routedPctTrend, pipelineStatus } from "@/data/mockData";
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
-} from "recharts";
 import { Activity, Cpu, Clock, AlertTriangle, Server, Database, Play, Square, RotateCcw, Settings } from "lucide-react";
 import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
 import { PipelineSkeleton, MetricSkeleton, ChartSkeleton } from "@/components/Skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { PipelineConfigPanel } from "@/components/PipelineConfigPanel";
 import { toast } from "sonner";
-import {fetchOverview, startPipeline, stopPipeline} from "@/api/healthApi.ts";
+import {fetchOverview, restartPipeline, startPipeline, stopPipeline} from "@/api/healthApi.ts";
 import {usePolling} from "@/hooks/usePolling.ts";
 import {mapOverviewToViewModel} from "@/mappers/systemHealthMapper.ts";
 
@@ -48,9 +42,25 @@ export default function SystemHealth() {
   const pipelineRunning = viewModel?.pipelineRunning ?? false;
   const config = viewModel?.config;
 
+  const pipelineStatus: { stage: string; status: "yes" | "no"}[] = [
+    {
+      stage: "Feature Extraction",
+      status: viewModel?.config.enable_stats ? "yes" : "no",
+    },
+    {
+      stage: "Temperature Scaling",
+      status: viewModel?.pipelineConfig.useTemperatureForRouting ? "yes" : "no",
+    },
+    {
+      stage: "Predictions",
+      status: "yes",
+    },
+  ];
+
   const handleStart = async () => {
     try {
       await startPipeline();
+      toast.success("Pipeline started");
     } catch (error) {
       toast.error("Failed to start pipeline");
     }
@@ -59,12 +69,18 @@ export default function SystemHealth() {
   const handleStop = async () => {
     try {
       await stopPipeline();
+      toast.success("Pipeline stopped");
     } catch (error) {
       toast.error("Failed to stop pipeline");
     }
   };
-  const handleRestart = () => {
-    toast.success("Pipeline restarted", { description: "Configuration reloaded" });
+  const handleRestart = async () => {
+    try {
+      await restartPipeline();
+      toast.success("Pipeline restarted", { description: "Configuration reloaded" });
+    } catch (error) {
+      toast.error("Failed to restart pipeline");
+    }
   };
 
   return (
@@ -106,18 +122,17 @@ export default function SystemHealth() {
           </div>
         ) : (
           <>
-            {/* Pipeline Status */}
-            {/*<div className="flex items-center gap-2 flex-wrap">*/}
-            {/*  {pipelineStatus.map((s, i) => (*/}
-            {/*    <div key={s.stage} className="flex items-center gap-2">*/}
-            {/*      <div className="flex items-center gap-1.5 bg-secondary px-3 py-1.5 rounded-md">*/}
-            {/*        <span className="text-xs text-foreground">{s.stage}</span>*/}
-            {/*        <StatusBadge status={s.status} />*/}
-            {/*      </div>*/}
-            {/*      {i < pipelineStatus.length - 1 && <span className="text-muted-foreground text-xs">→</span>}*/}
-            {/*    </div>*/}
-            {/*  ))}*/}
-            {/*</div>*/}
+            <div className="flex items-center gap-2 flex-wrap">
+              {pipelineStatus.map((s, i) => (
+                <div key={s.stage} className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-secondary px-3 py-1.5 rounded-md">
+                    <span className="text-xs text-foreground">{s.stage}</span>
+                    <StatusBadge status={s.status} />
+                  </div>
+                  {i < pipelineStatus.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                </div>
+              ))}
+            </div>
 
             {/* Pipeline Actions & Start-From */}
             <Card className="bg-card border border-primary/30 shadow-[0_0_15px_-3px_hsl(210,100%,56%,0.15)]">

@@ -138,13 +138,7 @@ export const kpiData = {
   lowConfidencePct: Math.round((mockFlows.filter(f => f.confidence < 0.5).length / mockFlows.length) * 100),
 };
 
-// Pipeline status
-export const pipelineStatus: { stage: PipelineStage; status: StageStatus }[] = [
-  { stage: "Capture", status: "OK" },
-  { stage: "Ingestion", status: "OK" },
-  { stage: "Feature Extraction", status: "OK" },
-  { stage: "Inference", status: "Degraded" },
-];
+
 
 // Time series data for charts
 export const flowsOverTime = Array.from({ length: 24 }, (_, i) => ({

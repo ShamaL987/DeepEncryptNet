@@ -11,7 +11,7 @@
     "idle_timeout_sec": 10,
     "poll_interval_sec": 1,
     "enable_stats": true,
-    "feature_pipeline": "HTTPS",
+    "feature_pipeline": "ISCX_V2",
     "timeout": 20
   }
 }

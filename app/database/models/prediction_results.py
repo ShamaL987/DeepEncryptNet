@@ -4,11 +4,9 @@ from sqlalchemy import (
     Column,
     String,
     Float,
-    DateTime,
     Integer,
     ForeignKey,
     JSON,
-    func,
 )
 from sqlalchemy.orm import relationship
 from app.database.models.base import BaseModel

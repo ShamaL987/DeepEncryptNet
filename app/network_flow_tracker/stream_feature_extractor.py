@@ -224,50 +224,57 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         brst_duration_std = float(burst_durations.std(ddof=1)) if len(burst_durations) > 1 else 0.0
 
         return {
-            "flow_id": flow_id,
-            "prefix_duration": prefix_duration,
-            "prefix_bytes_per_second": self._safe_div(total_bytes, prefix_duration),
-            "prefix_pkts_per_second": self._safe_div(total_packets, prefix_duration),
-            "prefix_fwd_pkt_share": self._safe_div(forward_packets, total_packets),
-            "prefix_fwd_byte_share": self._safe_div(forward_bytes, total_bytes),
-            "prefix_dir_switch_rate": prefix_direction_switch_rate,
-            "prefix_mean_fwd_len": prefix_mean_fwd_len,
-            "prefix_mean_rev_len": prefix_mean_rev_len,
-            "prefix_fwd_rev_mean_len_ratio": self._safe_div(prefix_mean_fwd_len, prefix_mean_rev_len),
-            "pkt_len_cv": self._safe_div(pkt_lengths_std, pkt_lengths_mean),
-            "pkt_len_iqr_ratio": self._safe_div(pkt_lengths_75 - pkt_lengths_25, pkt_lengths_50),
-            "iat_cv": self._safe_div(intervals_std, intervals_mean),
-            "iat_iqr_ratio": self._safe_div(intervals_75 - intervals_25, intervals_50),
-            "burst_count_per_second": self._safe_div(len(bursts), prefix_duration),
-            "burst_mean_bytes_per_packet": float(burst_bytes_per_packet.mean()) if not burst_bytes_per_packet.empty else 0.0,
-            "burst_std_bytes_per_packet": float(burst_bytes_per_packet.std(ddof=1)) if len(burst_bytes_per_packet) > 1 else 0.0,
-            "burst_top1_byte_share": self._safe_div(
-                float(burst_bytes.max()) if not burst_bytes.empty else 0.0,
-                float(burst_bytes.sum()) if not burst_bytes.empty else 0.0,
-            ),
-            "burst_interval_cv": self._coefficient_of_variation(burst_intervals),
-            "burst_interval_iqr_ratio": self._iqr_ratio(burst_intervals),
-            "burst_duration_cv": self._coefficient_of_variation(burst_durations),
-            "burst_duration_iqr_ratio": self._iqr_ratio(burst_durations),
-            "PKT_LENGTHS_MEAN": pkt_lengths_mean,
-            "PKT_LENGTHS_MAX": pkt_lengths_max,
-            "PKT_LENGTHS_STD": pkt_lengths_std,
-            "PKT_LENGTHS_25": pkt_lengths_25,
-            "PKT_LENGTHS_50": pkt_lengths_50,
-            "PKT_LENGTHS_75": pkt_lengths_75,
-            "INTERVALS_MEAN": intervals_mean,
-            "INTERVALS_MAX": intervals_max,
-            "INTERVALS_STD": intervals_std,
-            "INTERVALS_25": intervals_25,
-            "INTERVALS_50": intervals_50,
-            "INTERVALS_75": intervals_75,
-            "BRST_INTERVALS_MEAN": brst_intervals_mean,
-            "BRST_INTERVALS_MAX": brst_intervals_max,
-            "BRST_INTERVALS_STD": brst_intervals_std,
-            "BRST_INTERVALS_25": brst_intervals_25,
-            "BRST_DURATION_MEAN": brst_duration_mean,
-            "BRST_DURATION_MAX": brst_duration_max,
-            "BRST_DURATION_STD": brst_duration_std,
+            "stats":{
+                "flow_id": flow_id,
+                "prefix_duration": prefix_duration,
+                "prefix_bytes_per_second": self._safe_div(total_bytes, prefix_duration),
+                "prefix_pkts_per_second": self._safe_div(total_packets, prefix_duration),
+                "prefix_fwd_pkt_share": self._safe_div(forward_packets, total_packets),
+                "prefix_fwd_byte_share": self._safe_div(forward_bytes, total_bytes),
+                "prefix_dir_switch_rate": prefix_direction_switch_rate,
+                "prefix_mean_fwd_len": prefix_mean_fwd_len,
+                "prefix_mean_rev_len": prefix_mean_rev_len,
+                "prefix_fwd_rev_mean_len_ratio": self._safe_div(prefix_mean_fwd_len, prefix_mean_rev_len),
+                "pkt_len_cv": self._safe_div(pkt_lengths_std, pkt_lengths_mean),
+                "pkt_len_iqr_ratio": self._safe_div(pkt_lengths_75 - pkt_lengths_25, pkt_lengths_50),
+                "iat_cv": self._safe_div(intervals_std, intervals_mean),
+                "iat_iqr_ratio": self._safe_div(intervals_75 - intervals_25, intervals_50),
+                "burst_count_per_second": self._safe_div(len(bursts), prefix_duration),
+                "burst_mean_bytes_per_packet": float(burst_bytes_per_packet.mean()) if not burst_bytes_per_packet.empty else 0.0,
+                "burst_std_bytes_per_packet": float(burst_bytes_per_packet.std(ddof=1)) if len(burst_bytes_per_packet) > 1 else 0.0,
+                "burst_top1_byte_share": self._safe_div(
+                    float(burst_bytes.max()) if not burst_bytes.empty else 0.0,
+                    float(burst_bytes.sum()) if not burst_bytes.empty else 0.0,
+                ),
+                "burst_interval_cv": self._coefficient_of_variation(burst_intervals),
+                "burst_interval_iqr_ratio": self._iqr_ratio(burst_intervals),
+                "burst_duration_cv": self._coefficient_of_variation(burst_durations),
+                "burst_duration_iqr_ratio": self._iqr_ratio(burst_durations),
+                "PKT_LENGTHS_MEAN": pkt_lengths_mean,
+                "PKT_LENGTHS_MAX": pkt_lengths_max,
+                "PKT_LENGTHS_STD": pkt_lengths_std,
+                "PKT_LENGTHS_25": pkt_lengths_25,
+                "PKT_LENGTHS_50": pkt_lengths_50,
+                "PKT_LENGTHS_75": pkt_lengths_75,
+                "INTERVALS_MEAN": intervals_mean,
+                "INTERVALS_MAX": intervals_max,
+                "INTERVALS_STD": intervals_std,
+                "INTERVALS_25": intervals_25,
+                "INTERVALS_50": intervals_50,
+                "INTERVALS_75": intervals_75,
+                "BRST_INTERVALS_MEAN": brst_intervals_mean,
+                "BRST_INTERVALS_MAX": brst_intervals_max,
+                "BRST_INTERVALS_STD": brst_intervals_std,
+                "BRST_INTERVALS_25": brst_intervals_25,
+                "BRST_DURATION_MEAN": brst_duration_mean,
+                "BRST_DURATION_MAX": brst_duration_max,
+                "BRST_DURATION_STD": brst_duration_std,
+            },
+            "info":{
+                "total_packets":total_packets,
+                "total_bytes": total_bytes
+
+            }
         }
 
     def _save_feature_row(self, features: dict[str, Any]) -> None:
@@ -275,10 +282,12 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             flow_registry = FlowRegistry(
                 flow_id=features["flow_id"],
                 pipeline_name="HTTPS",
+                total_packets=int(features["info"]["total_packets"]),
+                total_bytes=int(features["info"]["total_bytes"]),
             )
             flow_registry.save(db)
 
-            stats_row = HTTPSFlowStats(**features)
+            stats_row = HTTPSFlowStats(**features['stats'])
             stats_row.save(db)
 
     def _write_directional_csv(self, df: pd.DataFrame, target_path: Path) -> Path:
@@ -448,10 +457,10 @@ class ISCXV2StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
         if duration <= 0:
             return None
 
-        total_bytes = float(lengths.sum())
+        total_bytes = lengths.sum()
         total_packets = len(df)
 
-        flow_bytes_per_second = total_bytes / duration
+        flow_bytes_per_second = float(total_bytes) / duration
         flow_packets_per_second = total_packets / duration
 
         flow_iat = timestamps.diff().dropna().reset_index(drop=True)
@@ -474,6 +483,8 @@ class ISCXV2StreamFeatureExtractor(BasePacketStreamFeatureExtractor):
             flow_registry = FlowRegistry(
                 flow_id=flow_id,
                 pipeline_name="ISCX_V2",
+                total_packets=int(total_packets),
+                total_bytes=int(total_bytes),
             )
             flow_registry.save(db)
 

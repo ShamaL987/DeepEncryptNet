@@ -143,3 +143,5 @@ def calculate_pipeline_health_metrics(
             else None
         ),
     }
+
+

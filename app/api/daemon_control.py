@@ -14,8 +14,6 @@ from app.settings import SettingsManager
 
 router = APIRouter(prefix="/api/daemon", tags=["Flow Daemon"])
 
-
-
 class FlowDaemonConfigPayload(BaseModel):
     config: dict[str, Any]
     restart_if_running: bool = True

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Live Flows", url: "/live-flows", icon: Radio },
   { title: "Routed Queue", url: "/routed-queue", icon: Inbox },
   { title: "System Health", url: "/system-health", icon: Activity },

@@ -22,8 +22,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Login />} />
           <Route element={<Layout />}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/live-flows" element={<LiveFlows />} />
             {/*<Route path="/flow/:flowId" element={<FlowDetail />} />*/}
             <Route path="/routed-queue" element={<RoutedQueue />} />

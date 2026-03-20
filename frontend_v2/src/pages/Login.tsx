@@ -18,7 +18,11 @@ export default function Login() {
       setError("Please enter both username and password.");
       return;
     }
-    // Mock auth — accept anything
+    if (username === "admin" && password === "admin") {
+      setError("");
+      navigate("/dashboard");
+      return;
+    }
     navigate("/");
   };
 

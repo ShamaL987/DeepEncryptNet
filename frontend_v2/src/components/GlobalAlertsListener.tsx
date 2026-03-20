@@ -41,7 +41,7 @@ export function GlobalAlertsListener() {
                         alert.severity === "error" || alert.severity === "high" ? "🔴" : "🟡",
                     action: {
                         label: "View",
-                        onClick: () => navigate("/"),
+                        onClick: () => navigate("/dashboard"),
                     },
                 });
 

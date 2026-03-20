@@ -1,8 +1,7 @@
 import { Badge } from "@/components/ui/badge";
-import type { Reliability } from "@/data/mockData";
 import { cn } from "@/lib/utils";
 
-export function ReliabilityBadge({ reliability }: { reliability: Reliability }) {
+export function ReliabilityBadge({ reliability }) {
   return (
     <Badge
       className={cn(

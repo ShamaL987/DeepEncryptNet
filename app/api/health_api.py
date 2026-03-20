@@ -2,35 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, Request, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api import get_settings_manager_from_request, get_controller
 from app.database.db import get_db
 from app.pipeline.registry import get_pipeline_model_display_config
-from app.services.flow_daemon_controller import FlowDaemonController
 from app.services.health import calculate_pipeline_health_metrics
-from app.settings import SettingsManager
 
-router = APIRouter(prefix="/api/daemon", tags=["Flow Daemon"])
+router = APIRouter(prefix="/health", tags=["Flow Daemon"])
 
 class FlowDaemonConfigPayload(BaseModel):
     config: dict[str, Any]
     restart_if_running: bool = True
-
-
-def get_controller(request: Request) -> FlowDaemonController:
-    controller = getattr(request.app.state, "flow_daemon_controller", None)
-    if controller is None:
-        raise HTTPException(status_code=500, detail="Flow daemon controller is not initialized")
-    return controller
-
-
-def get_settings_manager_from_request(request: Request) -> SettingsManager:
-    settings_manager = getattr(request.app.state, "settings_manager", None)
-    if settings_manager is None:
-        raise HTTPException(status_code=500, detail="Settings manager is not initialized")
-    return settings_manager
 
 
 @router.get("/status")
@@ -107,10 +92,12 @@ def get_flow_overview(request: Request, db: Session = Depends(get_db)):
     runtime_config = settings_manager.get_runtime_config()
     pipline_name = runtime_config['flow_daemon'].get('feature_pipeline')
 
+    is_running = controller.is_running
+
     return {
-        "status": "running" if controller.is_running else "stopped",
-        "is_running": controller.is_running,
-        "runtime_config": settings_manager.get_runtime_config(),
-        "health": calculate_pipeline_health_metrics(db),
-        "pipline_config": get_pipeline_model_display_config(pipline_name)
+        "status": "running" if is_running else "stopped",
+        "is_running": is_running,
+        "runtime_config": runtime_config,
+        "health": calculate_pipeline_health_metrics(db) if is_running else {},
+        "pipline_config": get_pipeline_model_display_config(pipline_name),
     }

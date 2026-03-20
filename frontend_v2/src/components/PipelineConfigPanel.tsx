@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -35,6 +36,8 @@ interface Props {
 export function PipelineConfigPanel({ config, open, onOpenChange }: Props) {
   const [localConfig, setLocalConfig] = useState<PipelineConfig>(config);
   const previousOpenRef = useRef(false);
+  const [saving, setSaving] = useState(false);
+
 
   useEffect(() => {
     const justOpened = open && !previousOpenRef.current;
@@ -54,19 +57,24 @@ export function PipelineConfigPanel({ config, open, onOpenChange }: Props) {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       await savePipeline(localConfig);
-      toast.success("Configuration saved");
+      toast.success("Configuration saved", {
+        description: "Pipeline config updated. Restart to apply.",
+      });
       onOpenChange(false);
     } catch {
       toast.error("Failed to save configurations");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleCancel = () => {
-    setLocalConfig(config);
-    onOpenChange(false);
-  };
+  // const handleCancel = () => {
+  //   setLocalConfig(config);
+  //   onOpenChange(false);
+  // };
 
   return (
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -188,10 +196,13 @@ export function PipelineConfigPanel({ config, open, onOpenChange }: Props) {
           </div>
 
           <SheetFooter>
-            <Button variant="outline" onClick={handleCancel}>
-              Cancel
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving} className="min-w-[160px]">
+            <span className="inline-flex w-4 items-center justify-center" aria-hidden="true">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="h-4 w-4" />}
+            </span>
+              <span>Save Configuration</span>
             </Button>
-            <Button onClick={handleSave}>Save Configuration</Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>

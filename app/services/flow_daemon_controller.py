@@ -4,6 +4,7 @@ import copy
 import threading
 from typing import Any
 
+from app.pipeline.prediction_queue import PredictionQueue
 from app.services.flow_daemon import run_flow_daemon
 from app.settings import log
 
@@ -14,6 +15,7 @@ class FlowDaemonController:
         self._config: dict[str, Any] = copy.deepcopy(initial_config or {})
         self._thread: threading.Thread | None = None
         self._stop_event: threading.Event | None = None
+        self._prediction_queue: PredictionQueue | None = None
 
     @property
     def is_running(self) -> bool:
@@ -22,6 +24,12 @@ class FlowDaemonController:
     def get_config(self) -> dict[str, Any]:
         with self._lock:
             return copy.deepcopy(self._config)
+
+    def get_prediction_queue_count(self) -> int:
+        with self._lock:
+            if self._prediction_queue is None:
+                return 0
+            return self._prediction_queue.get_pending_count()
 
     def update_config(self, new_config: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -41,20 +49,25 @@ class FlowDaemonController:
                 }
 
             self._stop_event = threading.Event()
+            self._prediction_queue = PredictionQueue(self._config["feature_pipeline"])
             self._thread = threading.Thread(
                 target=run_flow_daemon,
-                args=(copy.deepcopy(self._config), self._stop_event),
+                args=(
+                    copy.deepcopy(self._config),
+                    self._stop_event,
+                    self._prediction_queue,
+                ),
                 daemon=True,
                 name="flow-daemon",
             )
             self._thread.start()
 
-            log.info("[FlowDaemonController] Flow daemon started")
+        log.info("[FlowDaemonController] Flow daemon started")
 
-            return {
-                "started": True,
-                "status": "running",
-            }
+        return {
+            "started": True,
+            "status": "running",
+        }
 
     def stop(self, timeout: int = 10) -> dict[str, Any]:
         with self._lock:
@@ -64,17 +77,26 @@ class FlowDaemonController:
                     "status": "already_stopped",
                 }
 
-            if self._stop_event is not None:
-                self._stop_event.set()
+            stop_event = self._stop_event
+            thread = self._thread
+            prediction_queue = self._prediction_queue
 
-            if self._thread is not None:
-                self._thread.join(timeout=timeout)
+            if stop_event is not None:
+                stop_event.set()
 
-            clean_shutdown = not self.is_running
+        if thread is not None:
+            thread.join(timeout=timeout)
 
+        clean_shutdown = thread is not None and not thread.is_alive()
+
+        if prediction_queue is not None:
+            prediction_queue.shutdown()
+
+        with self._lock:
             if clean_shutdown:
                 self._thread = None
                 self._stop_event = None
+                self._prediction_queue = None
                 log.info("[FlowDaemonController] Flow daemon stopped")
             else:
                 log.warning("[FlowDaemonController] Flow daemon did not shut down cleanly")
@@ -99,4 +121,9 @@ class FlowDaemonController:
                 "is_running": self.is_running,
                 "thread_name": self._thread.name if self._thread else None,
                 "config": copy.deepcopy(self._config),
+                "prediction_queue_count": (
+                    self._prediction_queue.get_pending_count()
+                    if self._prediction_queue is not None
+                    else 0
+                ),
             }

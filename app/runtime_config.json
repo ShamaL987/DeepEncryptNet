@@ -4,7 +4,7 @@
     "processing_dir": "files/processing/processing_dir",
     "processed_dir": "files/processing/processed_dir",
     "streams_dir": "files/processing/streams_dir",
-    "max_packets": 10,
+    "max_packets": 100,
     "max_duration_sec": 20,
     "auto_start": false,
     "mode": "live",

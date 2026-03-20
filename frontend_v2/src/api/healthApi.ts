@@ -1,9 +1,9 @@
 import type { FlowDaemonOverviewResponse } from "@/types/daemon";
+import {API_BASE} from "@/api/index.ts";
 
-const API_BASE = "http://localhost:8000/api/daemon";
 
 export async function fetchOverview(): Promise<FlowDaemonOverviewResponse> {
-    const response = await fetch(`${API_BASE}/overview`);
+    const response = await fetch(`${API_BASE}/health/overview`);
 
     if (!response.ok) {
         throw new Error("Failed to fetch daemon overview");
@@ -12,26 +12,26 @@ export async function fetchOverview(): Promise<FlowDaemonOverviewResponse> {
 }
 
 export async function startPipeline() {
-    const response = await fetch(`${API_BASE}/start`, { method: "POST" });
+    const response = await fetch(`${API_BASE}/health/start`, { method: "POST" });
     if (!response.ok) throw new Error("Failed to start pipeline");
     return response.json();
 }
 
 export async function stopPipeline() {
-    const response = await fetch(`${API_BASE}/stop`, { method: "POST" });
+    const response = await fetch(`${API_BASE}/health/stop`, { method: "POST" });
     if (!response.ok) throw new Error("Failed to stop pipeline");
     return response.json();
 }
 
 export async function restartPipeline() {
-    const response = await fetch(`${API_BASE}/restart`, { method: "POST" });
+    const response = await fetch(`${API_BASE}/health/restart`, { method: "POST" });
     if (!response.ok) throw new Error("Failed to restart pipeline");
     return response.json();
 }
 
 export async function savePipeline(localConfig) {
     const response = await fetch(
-        `${API_BASE}/config`, {
+        `${API_BASE}/health/config`, {
             method: "PUT",headers: {"Content-Type": "application/json"
             }, body: JSON.stringify({config: localConfig, restart_if_running: true}),});
     if (!response.ok) throw new Error("Failed to save config");

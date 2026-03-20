@@ -3,13 +3,15 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
-from app.api.daemon_control import router as daemon_control_router
-from app.api.routed_queue import router as routed_control_router
+from app.api.dashboard_api import router as dashboard_router
+from app.api.health_api import router as health_router
+from app.api.live_api import router as live_router
+from app.api.routed_api import router as routed_router
 from app.database.init_db import ensure_schema
 from app.services.flow_daemon_controller import FlowDaemonController
 from app.settings import get_settings_manager, log
@@ -51,8 +53,12 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    application.include_router(daemon_control_router)
-    application.include_router(routed_control_router)
+    api_router = APIRouter(prefix="/api")
+    api_router.include_router(dashboard_router)
+    api_router.include_router(health_router)
+    api_router.include_router(live_router)
+    api_router.include_router(routed_router)
+    application.include_router(api_router)
 
 
     base_dir = Path(__file__).resolve().parent

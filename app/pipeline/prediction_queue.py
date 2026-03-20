@@ -1,4 +1,6 @@
 from concurrent.futures.thread import ThreadPoolExecutor
+from threading import Lock
+
 from app.pipeline.registry import get_pipeline_predict_fn, build_pipeline_inference
 from app.settings import log
 
@@ -10,8 +12,13 @@ class PredictionQueue:
         self.predict_fn = get_pipeline_predict_fn(pipeline_name)
         self.pipeline = build_pipeline_inference(pipeline_name)
 
+        self._pending_count = 0
+        self._lock = Lock()
 
     def enqueue(self, flow_id: str) -> None:
+        with self._lock:
+            self._pending_count += 1
+
         self.executor.submit(self._predict, flow_id)
 
     def _predict(self, flow_id: str) -> None:
@@ -26,6 +33,13 @@ class PredictionQueue:
             )
         except Exception:
             log.exception(f"[PREDICT] failed for {flow_id}")
+        finally:
+            with self._lock:
+                self._pending_count = max(0, self._pending_count - 1)
+
+    def get_pending_count(self) -> int:
+        with self._lock:
+            return self._pending_count
 
     def shutdown(self) -> None:
         self.executor.shutdown(wait=False)

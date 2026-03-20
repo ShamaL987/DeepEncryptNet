@@ -7,15 +7,13 @@ from app.pipeline.prediction_queue import PredictionQueue
 from app.settings import log
 
 
-def run_flow_daemon(cfg: dict, stop_event: threading.Event) -> None:
+def run_flow_daemon(cfg: dict, stop_event: threading.Event, prediction_queue: PredictionQueue)-> None:
     ready_dir = Path(cfg["ready_dir"])
     processing_dir = Path(cfg["processing_dir"])
     processed_dir = Path(cfg["processed_dir"])
 
     processing_dir.mkdir(parents=True, exist_ok=True)
     processed_dir.mkdir(parents=True, exist_ok=True)
-
-    prediction_queue = PredictionQueue(cfg["feature_pipeline"])
 
     log.info("[FlowDaemon] Watching batch directory")
 

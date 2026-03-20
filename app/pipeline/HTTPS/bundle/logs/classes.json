@@ -1,0 +1,12 @@
+{
+  "classes": [
+    "D",
+    "L",
+    "M",
+    "P",
+    "U",
+    "W"
+  ],
+  "dropped_rare_labels": [],
+  "min_required_per_class": 3
+}

@@ -7,12 +7,7 @@ __pycache__/
 *.csv
 *.db
 *.sqlite
-*.pkl
-*.pt
-*.pth
 *.onnx
-*.npz
-*.npy
 datasets/
 captures/
 notebooks/.ipynb_checkpoints/
@@ -48,6 +43,7 @@ frontend/lerna-debug.log*
 node_modules
 dist-ssr
 frontend/node_modules
+frontend_v2/node_modules
 frontend/dist
 *.local
 

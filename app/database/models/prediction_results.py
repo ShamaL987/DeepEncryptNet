@@ -4,30 +4,22 @@ from sqlalchemy import (
     Column,
     String,
     Float,
-    DateTime,
     Integer,
     ForeignKey,
     JSON,
-    func
 )
 from sqlalchemy.orm import relationship
 from app.database.models.base import BaseModel
 
 
-
 class PredictionResult(BaseModel):
-    """
-    Model prediction for a single flow.
-    One-to-one with FlowStats.
-    """
-
     __tablename__ = "prediction_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
     flow_id = Column(
         String,
-        ForeignKey("flow_stats.flow_id", ondelete="CASCADE"),
+        ForeignKey("flow_registry.flow_id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
@@ -48,15 +40,8 @@ class PredictionResult(BaseModel):
     model_version = Column(String, nullable=True)
     manifest_path = Column(String, nullable=True)
 
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-        index=True,
-    )
-
-    flow = relationship(
-        "FlowStats",
+    flow_registry = relationship(
+        "FlowRegistry",
         back_populates="prediction",
         passive_deletes=True,
     )

@@ -1,0 +1,12 @@
+{
+  "run_name": "v1",
+  "dataset_name": "ISCX_VPN_NONVPN_STATS_LEVEL",
+  "created_at": "2026-03-01T12:11:40.537565Z",
+  "device": "cuda",
+  "n_classes": 7,
+  "final_feature_count": 18,
+  "temperature_T": 0.9702934622764587,
+  "use_temperature_for_routing": true,
+  "selected_probs_variant": "cal",
+  "tau_selected_probs": 0.97
+}

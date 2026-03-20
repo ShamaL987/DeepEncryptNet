@@ -1,0 +1,22 @@
+{
+  "kept_features": [
+    "duration",
+    "flowBytesPerSecond",
+    "flowPktsPerSecond",
+    "max_active",
+    "max_biat",
+    "max_fiat",
+    "mean_biat",
+    "mean_fiat",
+    "mean_flowiat",
+    "min_biat",
+    "min_fiat",
+    "min_flowiat",
+    "std_active",
+    "std_biat",
+    "std_fiat",
+    "std_flowiat",
+    "total_biat",
+    "total_fiat"
+  ]
+}

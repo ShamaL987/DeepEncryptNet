@@ -1,0 +1,7 @@
+{
+  "use_temperature_for_routing": false,
+  "selected": "raw",
+  "criterion": "val_utility_threshold_routing",
+  "raw_val_utility": 0.2023724857554747,
+  "cal_val_utility": -0.01363910533850429
+}

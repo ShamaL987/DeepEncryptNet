@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* DeepEncryptNet — Monitoring Tool Dark Theme */
+
+@layer base {
+  :root {
+    --background: 220 20% 10%;
+    --foreground: 210 20% 92%;
+
+    --card: 220 18% 13%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 220 18% 13%;
+    --popover-foreground: 210 20% 92%;
+
+    --primary: 210 100% 56%;
+    --primary-foreground: 220 20% 6%;
+
+    --secondary: 220 16% 18%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 220 14% 16%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 220 16% 20%;
+    --accent-foreground: 210 20% 92%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 20%;
+    --input: 220 14% 20%;
+    --ring: 210 100% 56%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 210 15% 70%;
+    --sidebar-primary: 210 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 16% 14%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 220 14% 16%;
+    --sidebar-ring: 210 100% 56%;
+
+    /* Chart palette */
+    --chart-blue: 210 100% 56%;
+    --chart-green: 142 70% 49%;
+    --chart-orange: 25 95% 53%;
+    --chart-purple: 270 70% 60%;
+    --chart-cyan: 187 85% 53%;
+    --chart-red: 0 72% 51%;
+    --chart-yellow: 45 93% 58%;
+
+    /* Status colors */
+    --status-ok: 142 70% 49%;
+    --status-warning: 25 95% 53%;
+    --status-error: 0 72% 51%;
+    --status-degraded: 45 93% 58%;
+
+    /* Reliability badges */
+    --reliable: 142 70% 49%;
+    --unreliable: 25 95% 53%;
+    --unknown: 270 70% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  }
+}
+
+/* Custom scrollbar for monitoring aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(220 20% 8%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(220 14% 25%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 14% 35%);
+}

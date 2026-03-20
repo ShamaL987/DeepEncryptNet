@@ -1,0 +1,14 @@
+{
+  "beta": 1.9459101490553132,
+  "route_cost": 0.005,
+  "val": {
+    "coverage": 0.9937530033637674,
+    "macro_f1_accept": 0.9654898911280632,
+    "acc_accept": 0.9777562862669246,
+    "routed": 91,
+    "accepted": 14476,
+    "utility": 0.9286031394250147,
+    "wrong_accept": 322,
+    "correct_accept": 14154
+  }
+}

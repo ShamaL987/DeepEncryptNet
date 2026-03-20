@@ -1,0 +1,29 @@
+{
+  "DATA_PATH": "HTTPS-clf-dataset.csv",
+  "DATASET_NAME": "HTTPS_CLF",
+  "RUN_NAME": "https_ratio_v1",
+  "LABEL_COL": "TYPE",
+  "DROP_COLS": [
+    "Unnamed: 0"
+  ],
+  "TEST_SIZE": 0.2,
+  "VAL_SIZE": 0.1,
+  "SEED": 42,
+  "BATCH_SIZE": 256,
+  "EPOCHS": 35,
+  "LR": 0.001,
+  "WEIGHT_DECAY": 0.0001,
+  "EARLY_STOP_PATIENCE": 8,
+  "CORR_THRESHOLD": 0.975,
+  "VT_THRESHOLD": 1e-05,
+  "SKEW_RATIO_THRESH": 1000.0,
+  "PROTECT_COLS": [],
+  "AUTO_SMOTE": true,
+  "SMOTE_K_NEIGHBORS": 5,
+  "MODEL_DROP": 0.35,
+  "FOCAL_GAMMA": 1.5,
+  "LR_FACTOR": 0.5,
+  "LR_PATIENCE": 3,
+  "DBSCAN_EPS": 0.7,
+  "DBSCAN_MIN_SAMPLES": 20
+}

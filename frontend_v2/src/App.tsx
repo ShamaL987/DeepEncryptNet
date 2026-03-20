@@ -23,7 +23,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/live-flows" element={<LiveFlows />} />
-          <Route path="/flow/:flowId" element={<FlowDetail />} />
+          {/*<Route path="/flow/:flowId" element={<FlowDetail />} />*/}
           <Route path="/routed-queue" element={<RoutedQueue />} />
           <Route path="/system-health" element={<SystemHealth />} />
           <Route path="*" element={<NotFound />} />

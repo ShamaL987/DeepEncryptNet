@@ -154,36 +154,89 @@ export default function SystemHealth() {
 
           {isLoading ? (
               <div className="space-y-6">
-                <PipelineSkeleton />
-                <Skeleton className="h-10 w-full rounded-md" />
-                <Card className="bg-card border-border">
-                  <CardHeader className="pb-2 pt-4 px-4">
-                    <Skeleton className="h-4 w-28" />
-                  </CardHeader>
-                  <CardContent className="px-4 pb-4 space-y-3">
-                    <MetricSkeleton count={6} />
-                    <MetricSkeleton count={2} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                      <div
+                          key={index}
+                          className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-md"
+                      >
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-5 w-10 rounded-full" />
+                      </div>
+                  ))}
+                </div>
+
+                <Card className="bg-card border border-primary/30 shadow-[0_0_15px_-3px_hsl(210,100%,56%,0.15)]">
+                  <CardContent className="p-5">
+                    <div className="flex flex-col items-center justify-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-2 w-2 rounded-full" />
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-5 w-16 rounded-md" />
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center gap-2.5 w-full">
+                        <Skeleton className="h-10 w-[90px] rounded-md" />
+                        <Skeleton className="h-10 w-[82px] rounded-md" />
+                        <Skeleton className="h-10 w-[100px] rounded-md" />
+                        <Skeleton className="h-10 w-[170px] rounded-md" />
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
+
+                <Card className="bg-card border-border">
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    <Skeleton className="h-4 w-32" />
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 space-y-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                      {Array.from({ length: 6 }).map((_, index) => (
+                          <div
+                              key={index}
+                              className="bg-secondary/50 rounded-md p-4 border border-border space-y-3"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-4 w-4 rounded-sm" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="h-6 w-20" />
+                          </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      {Array.from({ length: 2 }).map((_, index) => (
+                          <div
+                              key={index}
+                              className="bg-secondary/50 rounded-md p-4 border border-border space-y-3"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Skeleton className="h-4 w-4 rounded-sm" />
+                              <Skeleton className="h-3 w-16" />
+                            </div>
+                            <Skeleton className="h-6 w-20" />
+                          </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-2 pt-4 px-4">
                     <Skeleton className="h-4 w-36" />
                   </CardHeader>
                   <CardContent className="px-4 pb-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                          <div key={i} className="space-y-1">
-                            <Skeleton className="h-2.5 w-16" />
-                            <Skeleton className="h-5 w-20" />
+                      {Array.from({ length: 4 }).map((_, index) => (
+                          <div key={index} className="space-y-2">
+                            <Skeleton className="h-3 w-20" />
+                            <Skeleton className="h-5 w-24" />
                           </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ChartSkeleton height={220} />
-                  <ChartSkeleton height={220} />
-                </div>
               </div>
           ) : (
               <>
@@ -314,13 +367,13 @@ export default function SystemHealth() {
                       <MetricCard
                           label="Inference Latency (p95)"
                           value={viewModel?.healthCards.inferenceLatencyP95 ?? 0}
-                          unit="ms"
+                          unit="/ms"
                           icon={Clock}
                       />
                       <MetricCard
-                          label="Inference Latency (p95)"
+                          label="Routed (%)"
                           value={viewModel?.healthCards.routed_percent ?? 0}
-                          unit="ms"
+                          unit="/s"
                           icon={Cpu}
                       />
                     </div>

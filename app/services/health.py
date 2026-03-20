@@ -8,10 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models.flow_registry import FlowRegistry
 from app.database.models.prediction_results import PredictionResult
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+from app.services import utc_now, round2
 
 
 def average_or_none(values: list[float]) -> float | None:
@@ -121,26 +118,20 @@ def calculate_pipeline_health_metrics(
     total_prediction_rows = len(recent_prediction_rows)
 
     return {
-
-        "flows_per_sec": float(recent_flow_count) / float(window_seconds),
-        "predictions_per_sec": float(recent_prediction_count) / float(window_seconds),
-        "latest_flow_lag_ms": lag_ms_from_now(latest_flow.created_at if latest_flow else None),
-        "latest_prediction_lag_ms": lag_ms_from_now(latest_prediction.created_at if latest_prediction else None),
-        "flow_to_prediction_lag_avg_ms": average_or_none(flow_to_prediction_lags_ms),
-        "flow_to_prediction_lag_p95_ms": percentile_95(flow_to_prediction_lags_ms),
-        "confidence_avg": average_or_none(confidence_values),
-        "confidence_p95": percentile_95(confidence_values),
+        "flows_per_sec": round2(float(recent_flow_count) / float(window_seconds)),
+        "predictions_per_sec": round2(float(recent_prediction_count) / float(window_seconds)),
+        "latest_flow_lag_ms": round2(lag_ms_from_now(latest_flow.created_at if latest_flow else None)),
+        "latest_prediction_lag_ms": round2(lag_ms_from_now(latest_prediction.created_at if latest_prediction else None)),
+        "flow_to_prediction_lag_avg_ms": round2(average_or_none(flow_to_prediction_lags_ms)),
+        "flow_to_prediction_lag_p95_ms": round2(percentile_95(flow_to_prediction_lags_ms)),
+        "confidence_avg": round2(average_or_none(confidence_values)),
+        "confidence_p95": round2(percentile_95(confidence_values)),
         "accepted_count": accepted_count,
         "routed_count": routed_count,
-        "routed_percent": (
+        "routed_percent": round2(
             float(routed_count) / float(total_prediction_rows) * 100.0
             if total_prediction_rows > 0
             else 0.0
-        ),
-        "prediction_uptime_sec": (
-            (utc_now() - first_prediction.created_at).total_seconds()
-            if first_prediction and first_prediction.created_at
-            else None
         ),
     }
 

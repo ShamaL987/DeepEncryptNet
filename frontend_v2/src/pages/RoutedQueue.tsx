@@ -57,7 +57,7 @@ function QueueKpi({
 }
 
 export default function RoutedQueue() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const isLoading = useSimulatedLoading(1000);
 
   const fetchOverviewStable = useCallback(() => fetchRoutedQueueOverview(50), []);
@@ -95,7 +95,7 @@ export default function RoutedQueue() {
                 <KpiSkeleton count={4} />
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="lg:col-span-2">
-                    <TableSkeleton rows={8} cols={7} />
+                    <TableSkeleton rows={30} cols={6} />
                   </div>
                   <Card className="bg-card border-border">
                     <CardHeader className="pb-2 pt-4 px-4">
@@ -132,7 +132,7 @@ export default function RoutedQueue() {
                                 <TableHead className="text-[10px]">Conf.</TableHead>
                                 <TableHead className="text-[10px]">Age</TableHead>
                                 <TableHead className="text-[10px]">Status</TableHead>
-                                <TableHead className="text-[10px]">Actions</TableHead>
+                                {/*<TableHead className="text-[10px]">Actions</TableHead>*/}
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -140,7 +140,7 @@ export default function RoutedQueue() {
                                   <TableRow
                                       key={f.id}
                                       className="cursor-pointer hover:bg-accent/50"
-                                      onClick={() => navigate(`/flow/${f.id}`)}
+                                      // onClick={() => navigate(`/flow/${f.id}`)}
                                   >
                                     <TableCell className="text-[11px] font-mono text-primary">
                                       {f.id}
@@ -158,54 +158,54 @@ export default function RoutedQueue() {
                                     <TableCell>
                                       <Badge
                                           className={cn(
-                                              "text-[10px] border-0",
-                                              f.reviewStatus === "New" &&
-                                              "bg-chart-blue/20 text-chart-blue",
-                                              f.reviewStatus === "In Review" &&
-                                              "bg-chart-orange/20 text-chart-orange",
-                                              f.reviewStatus === "Closed" &&
-                                              "bg-muted text-muted-foreground"
+                                              "text-[10px] border-0 transition-colors",
+                                              f.reviewStatus === "High Risk" &&
+                                              "bg-red-500/15 text-red-300 hover:bg-red-500/20 hover:text-red-200",
+                                              f.reviewStatus === "Medium Risk" &&
+                                              "bg-orange-500/15 text-orange-300 hover:bg-orange-500/20 hover:text-orange-200",
+                                              f.reviewStatus === "Low Risk" &&
+                                              "bg-amber-500/12 text-amber-300 hover:bg-amber-500/18 hover:text-amber-200"
                                           )}
                                       >
                                         {f.reviewStatus}
                                       </Badge>
                                     </TableCell>
-                                    <TableCell>
-                                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            title="Mark benign"
-                                        >
-                                          <CheckCircle className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            title="Flag suspicious"
-                                        >
-                                          <Flag className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            title="Add note"
-                                        >
-                                          <MessageSquare className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6"
-                                            title="Assign label"
-                                        >
-                                          <Tag className="h-3 w-3" />
-                                        </Button>
-                                      </div>
-                                    </TableCell>
+                                    {/*<TableCell>*/}
+                                    {/*  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>*/}
+                                    {/*    <Button*/}
+                                    {/*        variant="ghost"*/}
+                                    {/*        size="icon"*/}
+                                    {/*        className="h-6 w-6"*/}
+                                    {/*        title="Mark benign"*/}
+                                    {/*    >*/}
+                                    {/*      <CheckCircle className="h-3 w-3" />*/}
+                                    {/*    </Button>*/}
+                                    {/*    <Button*/}
+                                    {/*        variant="ghost"*/}
+                                    {/*        size="icon"*/}
+                                    {/*        className="h-6 w-6"*/}
+                                    {/*        title="Flag suspicious"*/}
+                                    {/*    >*/}
+                                    {/*      <Flag className="h-3 w-3" />*/}
+                                    {/*    </Button>*/}
+                                    {/*    <Button*/}
+                                    {/*        variant="ghost"*/}
+                                    {/*        size="icon"*/}
+                                    {/*        className="h-6 w-6"*/}
+                                    {/*        title="Add note"*/}
+                                    {/*    >*/}
+                                    {/*      <MessageSquare className="h-3 w-3" />*/}
+                                    {/*    </Button>*/}
+                                    {/*    <Button*/}
+                                    {/*        variant="ghost"*/}
+                                    {/*        size="icon"*/}
+                                    {/*        className="h-6 w-6"*/}
+                                    {/*        title="Assign label"*/}
+                                    {/*    >*/}
+                                    {/*      <Tag className="h-3 w-3" />*/}
+                                    {/*    </Button>*/}
+                                    {/*  </div>*/}
+                                    {/*</TableCell>*/}
                                   </TableRow>
                               ))}
                             </TableBody>

@@ -13,7 +13,7 @@ from app.database.models import FlowRegistry
 from app.database.models.https_flow_stats import HTTPSFlowStats
 from app.database.models.iscx_flow_stats_v2 import ISCXFlowStatsV2
 from app.database.models.prediction_results import PredictionResult
-from app.services.health import utc_now
+from app.services import utc_now
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -383,21 +383,15 @@ def get_dashboard_overview(request: Request, db: Session = Depends(get_db)):
         else 0.0
     )
 
-    processed_per_min = 0.0
-    if stats_model is not None and stats_query is not None:
-        processed_per_min = float(
-            stats_query
-            .filter(stats_model.created_at >= now - timedelta(minutes=1))
-            .with_entities(func.count())
-            .scalar()
-            or 0
-        )
-
-    uptime_sec = (
-        float((now - first_flow_created_at).total_seconds())
-        if first_flow_created_at is not None
-        else None
+    processed_per_min = float(
+        flow_query
+        .filter(FlowRegistry.created_at >= now - timedelta(minutes=1))
+        .with_entities(func.count(func.distinct(FlowRegistry.flow_id)))
+        .scalar()
+        or 0
     )
+
+
 
     queue_size = controller.get_prediction_queue_count()
 
@@ -406,7 +400,7 @@ def get_dashboard_overview(request: Request, db: Session = Depends(get_db)):
         "is_running": controller.is_running,
         "pipeline_name": pipeline_name,
         "summary": {
-            "uptime_sec": uptime_sec,
+            "uptime_sec": controller.get_uptime_sec(),
             "unique_flows": unique_flows,
             "processed_per_min": processed_per_min,
             "predictions_per_min": predictions_per_min,

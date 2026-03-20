@@ -28,14 +28,14 @@ function mapRiskStatusToReviewStatus(riskStatus: string): RoutedQueueReviewStatu
     const normalized = riskStatus.trim().toLowerCase();
 
     if (normalized.includes("high") || normalized.includes("critical")) {
-        return "In Review";
+        return "High Risk";
     }
 
     if (normalized.includes("low") || normalized.includes("benign")) {
-        return "Closed";
+        return "Medium Risk";
     }
 
-    return "New";
+    return "Low Risk";
 }
 
 function mapFlow(item: RoutedQueueItemApi): RoutedFlowView {

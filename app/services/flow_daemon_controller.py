@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import threading
+from datetime import datetime
 from typing import Any
 
 from app.pipeline.prediction_queue import PredictionQueue
 from app.services.flow_daemon import run_flow_daemon
+from app.services import utc_now
 from app.settings import log
 
 
@@ -16,6 +18,7 @@ class FlowDaemonController:
         self._thread: threading.Thread | None = None
         self._stop_event: threading.Event | None = None
         self._prediction_queue: PredictionQueue | None = None
+        self._started_at: datetime | None = None
 
     @property
     def is_running(self) -> bool:
@@ -24,6 +27,12 @@ class FlowDaemonController:
     def get_config(self) -> dict[str, Any]:
         with self._lock:
             return copy.deepcopy(self._config)
+
+    def get_uptime_sec(self) -> float | None:
+        with self._lock:
+            if not self.is_running or self._started_at is None:
+                return None
+            return (utc_now() - self._started_at).total_seconds()
 
     def get_prediction_queue_count(self) -> int:
         with self._lock:
@@ -61,6 +70,7 @@ class FlowDaemonController:
                 name="flow-daemon",
             )
             self._thread.start()
+            self._started_at = utc_now()
 
         log.info("[FlowDaemonController] Flow daemon started")
 
@@ -97,6 +107,7 @@ class FlowDaemonController:
                 self._thread = None
                 self._stop_event = None
                 self._prediction_queue = None
+                self._started_at = None
                 log.info("[FlowDaemonController] Flow daemon stopped")
             else:
                 log.warning("[FlowDaemonController] Flow daemon did not shut down cleanly")
@@ -109,6 +120,7 @@ class FlowDaemonController:
     def restart(self, timeout: int = 10) -> dict[str, Any]:
         stop_result = self.stop(timeout=timeout)
         start_result = self.start()
+        self._started_at = utc_now()
         return {
             "stop": stop_result,
             "start": start_result,

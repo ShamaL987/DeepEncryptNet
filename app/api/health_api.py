@@ -93,11 +93,13 @@ def get_flow_overview(request: Request, db: Session = Depends(get_db)):
     pipline_name = runtime_config['flow_daemon'].get('feature_pipeline')
 
     is_running = controller.is_running
+    health = calculate_pipeline_health_metrics(db) if is_running else {}
+    health["prediction_uptime_sec"] = controller.get_uptime_sec()
 
     return {
         "status": "running" if is_running else "stopped",
         "is_running": is_running,
         "runtime_config": runtime_config,
-        "health": calculate_pipeline_health_metrics(db) if is_running else {},
+        "health": health,
         "pipline_config": get_pipeline_model_display_config(pipline_name),
     }

@@ -10,12 +10,11 @@ export function usePolling<T>(
 
     const mountedRef = useRef(false);
     const fetcherRef = useRef(fetcher);
-
-    useEffect(() => {
-        fetcherRef.current = fetcher;
-    }, [fetcher]);
+    const initializedFetcherRef = useRef(false);
 
     const run = useCallback(async () => {
+        setLoading(true);
+
         try {
             const result = await fetcherRef.current();
             if (!mountedRef.current) return null;
@@ -37,7 +36,6 @@ export function usePolling<T>(
 
     useEffect(() => {
         mountedRef.current = true;
-        setLoading(true);
 
         run();
         const id = setInterval(run, intervalMs);
@@ -47,6 +45,17 @@ export function usePolling<T>(
             clearInterval(id);
         };
     }, [run, intervalMs]);
+
+    useEffect(() => {
+        fetcherRef.current = fetcher;
+
+        if (!initializedFetcherRef.current) {
+            initializedFetcherRef.current = true;
+            return;
+        }
+
+        run();
+    }, [fetcher, run]);
 
     return { data, loading, error, refetch: run };
 }

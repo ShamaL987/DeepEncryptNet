@@ -14,7 +14,7 @@ from app.database.models import FlowRegistry
 from app.database.models.https_flow_stats import HTTPSFlowStats
 from app.database.models.iscx_flow_stats_v2 import ISCXFlowStatsV2
 from app.database.models.prediction_results import PredictionResult
-from app.services.health import utc_now
+from app.services import utc_now
 from app.services.routed_flows import compute_risk_status, normalize_dt
 
 router = APIRouter(prefix="/routed", tags=["Routed Queue"])
@@ -54,10 +54,6 @@ def build_grouping_suggestions(items: list[dict]) -> list[dict]:
 def get_routed_queue_overview(
     request: Request,
     limit: int = Query(default=50, ge=1, le=100),
-    decision: str = Query(default="all"),
-    predicted_class: str = Query(default="all"),
-    reliability: str = Query(default="all"),
-    alerts_only: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
     now = utc_now()

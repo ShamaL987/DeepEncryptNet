@@ -29,7 +29,10 @@ export interface RoutedQueueOverviewApiResponse {
     summary: RoutedQueueSummaryApi;
 }
 
-export type RoutedQueueReviewStatus = "New" | "In Review" | "Closed";
+// export type RoutedQueueReviewStatus = "New" | "In Review" | "Closed";
+
+export type RoutedQueueReviewStatus = "High Risk" | "Medium Risk" | "Low Risk";
+
 
 export interface RoutedFlowView {
     id: string;

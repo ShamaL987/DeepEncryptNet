@@ -19,3 +19,4 @@ def get_controller(request: Request) -> FlowDaemonController:
     if controller is None:
         raise HTTPException(status_code=500, detail="Flow daemon controller is not initialized")
     return controller
+

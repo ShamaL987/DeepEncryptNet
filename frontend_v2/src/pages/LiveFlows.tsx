@@ -28,7 +28,7 @@ import { fetchLiveFlowsOverview } from "@/api/liveFlowsApi";
 import { mapLiveFlowsOverviewToViewModel } from "@/mappers/liveFlowsMapper";
 
 export default function LiveFlows() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [decision, setDecision] = useState("All");
   const [predictedClass, setPredictedClass] = useState("All");
   const [reliability, setReliability] = useState("All");
@@ -191,7 +191,7 @@ export default function LiveFlows() {
                               <TableRow
                                   key={flow.id}
                                   className="cursor-pointer hover:bg-accent/50"
-                                  onClick={() => navigate(`/flow/${flow.id}`)}
+                                  // onClick={() => navigate(`/flow/${flow.id}`)}
                               >
                                 <TableCell className="text-[11px] text-muted-foreground whitespace-nowrap">
                                   {new Date(flow.timestamp).toLocaleTimeString()}

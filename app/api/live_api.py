@@ -13,7 +13,7 @@ from app.database.models import FlowRegistry
 from app.database.models.https_flow_stats import HTTPSFlowStats
 from app.database.models.iscx_flow_stats_v2 import ISCXFlowStatsV2
 from app.database.models.prediction_results import PredictionResult
-from app.services.health import utc_now
+from app.services import utc_now
 from app.services.routed_flows import normalize_dt
 
 router = APIRouter(prefix="/live-flows", tags=["Live Flows"])

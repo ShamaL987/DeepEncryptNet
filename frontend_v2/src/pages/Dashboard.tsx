@@ -357,7 +357,7 @@ export default function Dashboard() {
                         {pageData.alerts.map((alert) => (
                             <button
                                 key={alert.id}
-                                onClick={() => navigate("/live-flows")}
+                                // onClick={() => navigate("/live-flows")}
                                 className="w-full text-left p-3 rounded-md bg-secondary/50 hover:bg-secondary transition-colors border border-border"
                             >
                               <div className="flex items-center gap-2 mb-1">

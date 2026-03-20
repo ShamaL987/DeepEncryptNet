@@ -280,7 +280,7 @@ class HTTPSStreamFeatureExtractor(BasePacketStreamFeatureExtractor):
     def _save_feature_row(self, features: dict[str, Any]) -> None:
         with session_scope() as db:
             flow_registry = FlowRegistry(
-                flow_id=features["flow_id"],
+                flow_id=features['stats']["flow_id"],
                 pipeline_name="HTTPS",
                 total_packets=int(features["info"]["total_packets"]),
                 total_bytes=int(features["info"]["total_bytes"]),

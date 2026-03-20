@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from statistics import median
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.api import get_settings_manager_from_request, get_controller
+from app.api import get_settings_manager_from_request, get_controller, build_prediction_query, LOW_CONFIDENCE_THRESHOLD
+from app.api.alerts_api import build_active_alerts
 from app.database.db import get_db
 from app.database.models import FlowRegistry
 from app.database.models.https_flow_stats import HTTPSFlowStats
@@ -16,11 +16,6 @@ from app.database.models.prediction_results import PredictionResult
 from app.services import utc_now
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
-
-LOW_CONFIDENCE_THRESHOLD = 0.60
-ROUTING_SPIKE_THRESHOLD_PERCENT = 35.0
-LOW_CONFIDENCE_MEDIAN_DROP = 0.10
-QUEUE_GROWTH_ALERT_THRESHOLD = 10
 
 
 def get_stats_model_for_pipeline(pipeline_name: str | None):
@@ -38,14 +33,7 @@ def build_flow_query(db: Session, pipeline_name: str | None):
     return query
 
 
-def build_prediction_query(db: Session, pipeline_name: str | None):
-    query = (
-        db.query(PredictionResult)
-        .join(FlowRegistry, PredictionResult.flow_id == FlowRegistry.flow_id)
-    )
-    if pipeline_name:
-        query = query.filter(FlowRegistry.pipeline_name == pipeline_name)
-    return query
+
 
 
 def build_stats_query(db: Session, pipeline_name: str | None):
@@ -200,114 +188,6 @@ def build_confidence_distribution(prediction_query):
         {"range": key, "count": value_map[key]}
         for key in value_map
     ]
-
-
-def build_active_alerts(prediction_query, queue_size, now):
-    alerts: list[dict] = []
-
-    last_10_min_query = prediction_query.filter(
-        PredictionResult.created_at >= now - timedelta(minutes=10)
-    )
-    last_10_total = int(
-        last_10_min_query.with_entities(func.count(PredictionResult.id)).scalar() or 0
-    )
-    last_10_routed = int(
-        last_10_min_query
-        .filter(PredictionResult.action == 1)
-        .with_entities(func.count(PredictionResult.id))
-        .scalar()
-        or 0
-    )
-
-    routed_percent_10m = (
-        float(last_10_routed) / float(last_10_total) * 100.0
-        if last_10_total > 0
-        else 0.0
-    )
-
-    if routed_percent_10m > ROUTING_SPIKE_THRESHOLD_PERCENT:
-        alerts.append(
-            {
-                "severity": "high",
-                "title": "Routing Spike Detected",
-                "message": (
-                    f"Routed % exceeded {ROUTING_SPIKE_THRESHOLD_PERCENT:.0f}% in the last 10 minutes "
-                    f"(currently {routed_percent_10m:.0f}%)"
-                ),
-                "timestamp": now.isoformat(),
-            }
-        )
-
-    current_15_start = now - timedelta(minutes=15)
-    previous_15_start = now - timedelta(minutes=30)
-
-    current_15_conf = [
-        float(value[0])
-        for value in (
-            prediction_query
-            .filter(PredictionResult.created_at >= current_15_start)
-            .with_entities(PredictionResult.max_p)
-            .all()
-        )
-        if value[0] is not None
-    ]
-
-    previous_15_conf = [
-        float(value[0])
-        for value in (
-            prediction_query
-            .filter(
-                PredictionResult.created_at >= previous_15_start,
-                PredictionResult.created_at < current_15_start,
-            )
-            .with_entities(PredictionResult.max_p)
-            .all()
-        )
-        if value[0] is not None
-    ]
-
-    if current_15_conf and previous_15_conf:
-        current_median = median(current_15_conf)
-        previous_median = median(previous_15_conf)
-
-        if previous_median - current_median >= LOW_CONFIDENCE_MEDIAN_DROP:
-            alerts.append(
-                {
-                    "severity": "medium",
-                    "title": "Low Confidence Surge",
-                    "message": (
-                        f"Confidence median dropped from {previous_median:.2f} "
-                        f"to {current_median:.2f} in the last 15 minutes"
-                    ),
-                    "timestamp": now.isoformat(),
-                }
-            )
-
-    routed_last_5 = int(
-        prediction_query
-        .filter(
-            PredictionResult.created_at >= now - timedelta(minutes=5),
-            PredictionResult.action == 1,
-        )
-        .with_entities(func.count(PredictionResult.id))
-        .scalar()
-        or 0
-    )
-
-    if routed_last_5 >= QUEUE_GROWTH_ALERT_THRESHOLD:
-        alerts.append(
-            {
-                "severity": "medium",
-                "title": "Unknown Queue Growing",
-                "message": (
-                    f"Queue received {routed_last_5} routed flows in the last 5 minutes "
-                    f"(current pending: {queue_size})"
-                ),
-                "timestamp": now.isoformat(),
-            }
-        )
-
-    return alerts
 
 
 @router.get("/overview")

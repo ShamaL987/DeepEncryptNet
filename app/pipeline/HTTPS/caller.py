@@ -6,6 +6,7 @@ import pandas as pd
 
 from app.database.db import session_scope
 from app.database.models import PredictionResult
+from app.pipeline.HTTPS import CLASS_LABEL_MAP
 from app.pipeline.HTTPS.Initializer import HTTPSInference
 from app.pipeline.HTTPS.loader import get_flow_features_df
 
@@ -58,7 +59,8 @@ def hybrid_pipeline(flow_id: str, pipeline: HTTPSInference) -> Dict[str, Any]:
 
     row = out_df.iloc[0]
 
-    predicted_class = str(row["pred_class"])
+    predicted_class_code = str(row["pred_class"]).strip().upper()
+    predicted_class = CLASS_LABEL_MAP.get(predicted_class_code, predicted_class_code)
     pred_idx = int(row["pred_class_id"])
     action_val = _choose_action(row)
     max_p = float(row["confidence"])

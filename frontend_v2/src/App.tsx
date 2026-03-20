@@ -10,6 +10,7 @@ import RoutedQueue from "./pages/RoutedQueue";
 import SystemHealth from "./pages/SystemHealth";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import {Layout} from "@/layout/layout.tsx";
 
 const queryClient = new QueryClient();
 
@@ -21,12 +22,14 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/live-flows" element={<LiveFlows />} />
-          {/*<Route path="/flow/:flowId" element={<FlowDetail />} />*/}
-          <Route path="/routed-queue" element={<RoutedQueue />} />
-          <Route path="/system-health" element={<SystemHealth />} />
-          <Route path="*" element={<NotFound />} />
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/live-flows" element={<LiveFlows />} />
+            {/*<Route path="/flow/:flowId" element={<FlowDetail />} />*/}
+            <Route path="/routed-queue" element={<RoutedQueue />} />
+            <Route path="/system-health" element={<SystemHealth />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

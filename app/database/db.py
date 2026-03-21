@@ -1,7 +1,9 @@
 from __future__ import annotations
 from contextlib import contextmanager
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
+
 from app.settings import get_settings_manager
 
 settings = get_settings_manager().get_all()
@@ -12,15 +14,24 @@ DATABASE_URL = (
     f"@{db_cfg['host']}:{db_cfg['port']}/{db_cfg['name']}"
 )
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
-SessionLocal = scoped_session(
-    sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    echo=False,
 )
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)
+
 Base = declarative_base()
+
 
 @contextmanager
 def session_scope():
-    """Yields a transactional session with commit/rollback."""
     session = SessionLocal()
     try:
         yield session

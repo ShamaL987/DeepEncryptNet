@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Find Postgres bin dir (version-agnostic)
 PG_BIN="$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | sort -V | tail -n1)"
 
 if [ -z "${PG_BIN}" ] || [ ! -x "${PG_BIN}/initdb" ]; then
@@ -19,18 +18,16 @@ mkdir -p "$PGDATA"
 chown -R postgres:postgres /var/lib/postgresql
 mkdir -p /var/run/postgresql
 chown -R postgres:postgres /var/run/postgresql
+mkdir -p /data/files /data/logs /data/runtime
 
-# Init cluster if first run
 if [ ! -s "$PGDATA/PG_VERSION" ]; then
   echo "Initializing PostgreSQL data directory..."
   su - postgres -c "$INITDB -D '$PGDATA'"
 
-  # MVP auth: trust local connections
   echo "host all all 127.0.0.1/32 trust" >> "$PGDATA/pg_hba.conf"
   echo "local all all trust" >> "$PGDATA/pg_hba.conf"
 fi
 
-# Start postgres temporarily to create DB if missing
 echo "Starting PostgreSQL temporarily..."
 su - postgres -c "$PG_CTL -D '$PGDATA' -o \"-c listen_addresses='127.0.0.1'\" -w start"
 

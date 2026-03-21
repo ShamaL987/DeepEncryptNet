@@ -92,7 +92,7 @@ This repository contains the backend implementation, including:
 
 ---
 
-## Run Application (Local)
+## Run Application (Development server)
 
 ```bash
   uvicorn app.main:application --host 0.0.0.0 --port 8000 --reload
@@ -100,22 +100,29 @@ This repository contains the backend implementation, including:
 
 ---
 
-## Docker (Development)
+## Docker (Development database)
 
 ```bash
-  docker compose -f docker-compose.dev.yml up -d
+  docker compose -f infra/compose/docker-compose.db.local.yml up -d
   docker logs -f deepencryptnet_db
 ```
 
 ---
 
-## Docker (Production)
+
+## Docker (Development server + db)
 
 ```bash
-  docker compose --build --no-cache
-  docker compose up
+    docker compose -f infra/compose/docker-compose.local.yml up --build
 ```
 
+---
+
+## Docker (Production server)
+
+```bash
+    docker compose -f infra/compose/docker-compose.server.yml up --build -d
+```
 
 ---
 

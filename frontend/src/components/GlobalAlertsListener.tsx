@@ -9,7 +9,7 @@ export function GlobalAlertsListener() {
     const notifiedAlertIdsRef = useRef<Set<string>>(new Set());
 
     const fetchAlertsStable = useCallback(() => fetchDashboardAlerts(), []);
-    const { data } = usePolling(fetchAlertsStable, 10000);
+    const { data } = usePolling(fetchAlertsStable, 30000);
 
     const alerts = useMemo(() => {
         return data?.items ?? [];

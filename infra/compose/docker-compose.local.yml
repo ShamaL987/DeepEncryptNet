@@ -1,0 +1,33 @@
+services:
+  deepencryptnet-local:
+    build:
+      context: ../..
+      dockerfile: infra/docker/local/Dockerfile
+    container_name: deepencryptnet-local
+    ports:
+      - "8000:8000"
+      - "5432:5432"
+    environment:
+      APP_ENV: local
+      CONFIG_PATH: /app/app/config.local.yaml
+      FLOW_BASE_DIR: /data/files
+
+      DATABASE_HOST: 127.0.0.1
+      DATABASE_PORT: 5432
+      DATABASE_NAME: flows
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+
+      POSTGRES_DB: flows
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ../../logs:/data/logs
+      - ../../files:/data/files
+      - ../../tracker-exe/files:/data/files
+      - local_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  local_pg_data:

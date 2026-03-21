@@ -1,0 +1,22 @@
+services:
+  deepencryptnet-server:
+    build:
+      context: ../..
+      dockerfile: infra/docker/server/Dockerfile
+    container_name: deepencryptnet-server
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: server
+      CONFIG_PATH: /app/app/config.server.yaml
+      FLOW_BASE_DIR: /data/files
+
+      DATABASE_HOST: YOUR_DB_HOST
+      DATABASE_PORT: 5432
+      DATABASE_NAME: flows
+      DATABASE_USER: YOUR_DB_USER
+      DATABASE_PASSWORD: YOUR_DB_PASSWORD
+    volumes:
+      - ../../logs:/data/logs
+      - ../../files:/data/files
+    restart: unless-stopped

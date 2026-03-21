@@ -45,6 +45,7 @@ dist-ssr
 frontend/node_modules
 frontend_v2/node_modules
 frontend/dist
+frontend/.vite
 *.local
 
 # Editor directories and files

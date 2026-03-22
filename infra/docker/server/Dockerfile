@@ -20,11 +20,11 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=s/<your-service-id>-/root/.cache/uv,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-editable
 
 COPY app ./app
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=s/<your-service-id>-/root/.cache/uv,target=/root/.cache/uv \
     uv sync --frozen --no-editable
 
 

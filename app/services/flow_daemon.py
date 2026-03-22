@@ -41,15 +41,27 @@ def run_flow_daemon(cfg: dict, stop_event: threading.Event, prediction_queue: Pr
                 max_packets=cfg.get("max_packets", 100),
                 max_duration_sec=cfg.get("max_duration_sec", 20.0),
                 pipeline_name = cfg.get("feature_pipeline", "HTTPS"),
-                idle_threshold = float(cfg.get("feature_idle_threshold", 1.0))
+                idle_threshold = float(cfg.get("feature_idle_threshold", 1.0)),
+                save_stream_files = bool(cfg.get("save_stream_files", True))
             )
 
-            divider.run(stop_event=stop_event, batch_id=batch.stem)
+            result = divider.run(stop_event=stop_event, batch_id=batch.stem)
 
-            processed_path = processed_dir / processing_path.name
-            processing_path.replace(processed_path)
+            if result["status"] == "completed":
+                if bool(cfg.get("save_processed_batch_file", True)):
+                    processed_path = processed_dir / processing_path.name
+                    processing_path.replace(processed_path)
+                    log.info(f"[FlowDaemon] Moved processed batch to {processed_path}")
+                else:
+                    if processing_path.exists():
+                        processing_path.unlink()
+                    log.info(f"[FlowDaemon] Deleted processed batch {processing_path.name}")
+            else:
+                log.warning(
+                    f"[FlowDaemon] Batch {processing_path.name} did not complete. Keeping file in processing directory.")
 
             time.sleep(float(cfg.get("timeout", 0.0)))
+
 
     except Exception as exc:
         log.exception("[FlowDaemon] Fatal error", exc_info=exc)

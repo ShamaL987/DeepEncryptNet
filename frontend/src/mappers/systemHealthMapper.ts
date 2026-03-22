@@ -14,6 +14,8 @@ export interface PipelineConfig {
     mode: string;
     feature_pipeline: string;
     system_delay: number;
+    save_processed_batch_file: boolean;
+    save_stream_files: boolean;
 }
 
 export interface SystemHealthViewModel {

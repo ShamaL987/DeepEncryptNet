@@ -103,7 +103,7 @@ This repository contains the backend implementation, including:
 ## Docker (Development database)
 
 ```bash
-  docker compose -f infra/compose/docker-compose.db.local.yml up -d
+  docker compose -f infra/compose/docker-compose.dev.local.yml up -d
   docker logs -f deepencryptnet_db
 ```
 

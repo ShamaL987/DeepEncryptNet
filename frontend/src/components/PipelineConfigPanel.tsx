@@ -135,6 +135,8 @@ export function PipelineConfigPanel({ config, open, onOpenChange }: Props) {
                 Toggles
               </h3>
               {([
+                ["save_processed_batch_file", "Save Batch Files"],
+                ["save_stream_files", "Save Stream Files"],
                 ["auto_start", "Auto Start"],
                 ["enable_stats", "Enable Stats"],
               ] as const).map(([key, label]) => (

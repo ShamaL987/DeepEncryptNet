@@ -9,6 +9,7 @@ from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
 from app.api.dashboard_api import router as dashboard_router
+from app.api.upload_api import router as upload_router
 from app.api.alerts_api import router as alerts_router
 from app.api.health_api import router as health_router
 from app.api.live_api import router as live_router
@@ -60,6 +61,7 @@ def create_application() -> FastAPI:
     api_router.include_router(health_router)
     api_router.include_router(live_router)
     api_router.include_router(routed_router)
+    api_router.include_router(upload_router)
     application.include_router(api_router)
 
 

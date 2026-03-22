@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from app.network_flow_tracker.stream_feature_extractor import ConfiguredPipelineStreamFeatureExtractor
 from app.pipeline.prediction_queue import PredictionQueue
+from app.settings import log
 
 FlowKey = Tuple[str, str, str, str, str]
 
@@ -63,11 +64,13 @@ class PacketStreamDivider:
         idle_timeout_sec: float = 30.0,
         max_packets: int = 100,
         max_duration_sec: float = 20.0,
+        save_stream_files: bool = True,
     ):
         self.packet_csv = packet_csv
         self.output_dir = output_dir
         self.extract_features = extract_features
         self.prediction_queue = prediction_queue
+        self.save_stream_files = save_stream_files
 
         self.idle_timeout_sec = idle_timeout_sec
         self.max_packets = max_packets
@@ -77,7 +80,10 @@ class PacketStreamDivider:
         self.stream_counter = 0
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.extractor = ConfiguredPipelineStreamFeatureExtractor(pipeline_name=pipeline_name, idle_threshold=idle_threshold)
+        self.extractor = ConfiguredPipelineStreamFeatureExtractor(
+            pipeline_name=pipeline_name,
+            idle_threshold=idle_threshold,
+        )
 
         self.total_finalized_streams = 0
         self.total_extracted_streams = 0
@@ -139,11 +145,18 @@ class PacketStreamDivider:
             return True
         return False
 
+    @staticmethod
+    def _delete_file(path: Path) -> None:
+        if path.exists() and path.is_file():
+            path.unlink()
+
     def _finalize_stream(self, stream: ActiveStream) -> bool:
         stream.writer.close()
         self.total_finalized_streams += 1
 
         if not self.extract_features:
+            if not self.save_stream_files:
+                self._delete_file(stream.writer.path)
             return True
 
         stats_saved = self.extractor.extract(stream.writer.path, stream.stream_id)
@@ -152,13 +165,18 @@ class PacketStreamDivider:
             self.total_extracted_streams += 1
             if self.prediction_queue is not None:
                 saved_flow_ids = stats_saved.get("saved_flow_ids")
-                if stats_saved.get("saved_flow_ids"):
-                    for i in saved_flow_ids:
-                        self.prediction_queue.enqueue(i)
+                if saved_flow_ids:
+                    for flow_id in saved_flow_ids:
+                        self.prediction_queue.enqueue(flow_id)
                 else:
                     self.prediction_queue.enqueue(stream.stream_id)
+
+            if not self.save_stream_files:
+                self._delete_file(stream.writer.path)
+
             return True
 
+        log.warning(f"[PacketStreamDivider] Feature extraction failed for {stream.stream_id}. Keeping stream CSV.")
         return False
 
     def _finalize_all_streams(self) -> None:

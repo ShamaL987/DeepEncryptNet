@@ -20,12 +20,10 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,id=s/<RAILWAY_SERVICE_ID>-/root/.cache/uv,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-editable
+RUN uv sync --frozen --no-install-project --no-editable
 
 COPY app ./app
-RUN --mount=type=cache,id=s/<RAILWAY_SERVICE_ID>-/root/.cache/uv,target=/root/.cache/uv \
-    uv sync --frozen --no-editable
+RUN uv sync --frozen --no-editable
 
 
 FROM python:3.12-slim-bookworm

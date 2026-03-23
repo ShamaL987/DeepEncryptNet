@@ -11,6 +11,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import requests
@@ -26,6 +27,7 @@ REQUEST_TIMEOUT_SECONDS = 60
 FIELD_SEPARATOR = "\t"
 CONFIG_FILE_NAME = "deepencryptnet_client_config.json"
 DEFAULT_UPLOAD_PATH = "api/file-upload/ingest"
+DEFAULT_VALIDATE_PATH = "api/user/external/validate"
 
 CSV_COLUMNS = [
     "timestamp",
@@ -53,6 +55,58 @@ TSHARK_FIELDS = [
     "_ws.col.Protocol",
     "frame.len",
 ]
+
+
+def print_header(title: str) -> None:
+    line = "=" * 72
+    print(f"\n{line}\n{title}\n{line}")
+
+
+def print_step(message: str) -> None:
+    print(f"[STEP] {message}")
+
+
+def print_info(message: str) -> None:
+    print(f"[INFO] {message}")
+
+
+def print_success(message: str) -> None:
+    print(f"[OK]   {message}")
+
+
+def print_warn(message: str) -> None:
+    print(f"[WARN] {message}")
+
+
+def print_error(message: str) -> None:
+    print(f"[ERR]  {message}")
+
+
+def mask_token(token: str) -> str:
+    if len(token) <= 12:
+        return token
+    return f"{token[:12]}...{token[-8:]}"
+
+
+def normalize_server_url(raw_url: str) -> str:
+    return raw_url.strip().rstrip("/")
+
+
+def validate_server_url_format(server_url: str) -> tuple[bool, str]:
+    if not server_url:
+        return False, "Server URL is required"
+
+    parsed = urlparse(server_url)
+    if not parsed.scheme or not parsed.netloc:
+        return False, "Enter a full URL such as https://your-server.com"
+
+    host = (parsed.hostname or "").lower()
+    is_local_host = host in {"localhost", "127.0.0.1", "0.0.0.0"}
+
+    if parsed.scheme != "https" and not is_local_host:
+        return False, "Server URL must use HTTPS for remote servers"
+
+    return True, ""
 
 
 class CapturePaths:
@@ -83,30 +137,64 @@ class AppConfig:
     def save(self, data: dict) -> None:
         self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-    def load_or_prompt(self) -> dict:
-        if self.exists():
-            data = self.load()
-            if data.get("server_url") and data.get("api_token"):
-                return data
+    def prompt_server_url(self) -> str:
+        while True:
+            value = normalize_server_url(input("Enter server URL: "))
+            is_valid, reason = validate_server_url_format(value)
+            if is_valid:
+                return value
+            print_warn(reason)
 
-        server_url = input("Enter server URL: ").strip().rstrip("/")
-        while not server_url:
-            print("Server URL is required")
-            server_url = input("Enter server URL: ").strip().rstrip("/")
+    def prompt_api_token(self) -> str:
+        while True:
+            value = input("Enter API token: ").strip()
+            if value:
+                return value
+            print_warn("API token is required")
 
-        api_token = input("Enter API token: ").strip()
-        while not api_token:
-            print("API token is required")
-            api_token = input("Enter API token: ").strip()
+    def prompt_and_save(self) -> dict:
+        print_header("DeepEncryptNet Client Setup")
+        print_info("Server URL example: https://deepencryptnet-staging.up.railway.app")
+        print_info("Paste the API token copied from the DeepEncryptNet dashboard")
+
+        server_url = self.prompt_server_url()
+        api_token = self.prompt_api_token()
 
         data = {
             "schema_version": SCHEMA_VERSION,
             "server_url": server_url,
             "api_token": api_token,
             "upload_path": DEFAULT_UPLOAD_PATH,
+            "validate_path": DEFAULT_VALIDATE_PATH,
         }
         self.save(data)
+        print_success(f"Configuration saved to: {self.path}")
         return data
+
+    def load_or_prompt(self) -> dict:
+        if not self.exists():
+            return self.prompt_and_save()
+
+        try:
+            data = self.load()
+        except Exception:
+            print_warn("Existing configuration file could not be read")
+            return self.prompt_and_save()
+
+        if not data.get("server_url") or not data.get("api_token"):
+            print_warn("Existing configuration is incomplete")
+            return self.prompt_and_save()
+
+        print_header("DeepEncryptNet Client Configuration")
+        print_info(f"Config file : {self.path}")
+        print_info(f"Server URL  : {data['server_url']}")
+        print_info(f"API Token   : {mask_token(data['api_token'])}")
+
+        reuse = input("Reuse saved configuration? [Y/n]: ").strip().lower()
+        if reuse in {"", "y", "yes"}:
+            return data
+
+        return self.prompt_and_save()
 
 
 class TsharkLocator:
@@ -181,26 +269,28 @@ class NetworkInterfaceResolver:
         if not interfaces:
             raise RuntimeError("No network interfaces found")
 
-        print("\nAvailable interfaces:")
+        print_header("Available Network Interfaces")
+        print_info(f"Capture filter: {BPF_FILTER}")
         for idx, name in interfaces:
-            print(f"{idx}. {name}")
+            print(f"{idx:>2}. {name}")
 
         while True:
             choice = input("\nSelect interface number: ").strip()
             if not choice.isdigit():
-                print("Invalid input")
+                print_warn("Please enter a valid interface number")
                 continue
 
             idx = int(choice)
             if not any(i == idx for i, _ in interfaces):
-                print("Not in list")
+                print_warn("Selected interface is not in the list")
                 continue
 
+            print_step(f"Validating interface {idx}...")
             if self.validate(idx):
-                print(f"[CAPTURE] Using interface {idx}")
+                print_success(f"Using interface {idx}")
                 return idx
 
-            print("Interface not usable")
+            print_warn("Selected interface is not usable for capture")
 
 
 class TsharkCommandFactory:
@@ -215,8 +305,8 @@ class TsharkCommandFactory:
             "-E", f"separator={FIELD_SEPARATOR}",
             "-E", "header=n",
         ]
-        for f in TSHARK_FIELDS:
-            cmd.extend(["-e", f])
+        for field in TSHARK_FIELDS:
+            cmd.extend(["-e", field])
         return cmd
 
 
@@ -230,10 +320,14 @@ class PacketParser:
         (
             ts,
             frame_number,
-            ipv4_src, ipv6_src,
-            tcp_src, udp_src,
-            ipv4_dst, ipv6_dst,
-            tcp_dst, udp_dst,
+            ipv4_src,
+            ipv6_src,
+            tcp_src,
+            udp_src,
+            ipv4_dst,
+            ipv6_dst,
+            tcp_dst,
+            udp_dst,
             proto,
             length,
         ) = parts
@@ -313,7 +407,7 @@ class RotatingPacketWriter:
         final_csv = self.paths.ready / self.current_tmp.with_suffix(".csv").name
         self.current_tmp.replace(final_csv)
 
-        print(f"[CAPTURE] Closed batch → {final_csv}")
+        print_info(f"Closed batch and moved to ready: {final_csv.name}")
 
     def write_row(self, row: list[str]) -> None:
         now = time.time()
@@ -332,14 +426,46 @@ class RotatingPacketWriter:
 
 
 class UploadClient:
-    def __init__(self, server_url: str, api_token: str, upload_path: str):
+    def __init__(
+        self,
+        server_url: str,
+        api_token: str,
+        upload_path: str,
+        validate_path: str,
+    ):
         self.server_url = server_url.rstrip("/")
         self.api_token = api_token
         self.upload_path = upload_path if upload_path.startswith("/") else f"/{upload_path}"
+        self.validate_path = validate_path if validate_path.startswith("/") else f"/{validate_path}"
 
     @property
     def upload_url(self) -> str:
         return f"{self.server_url}{self.upload_path}"
+
+    @property
+    def validate_url(self) -> str:
+        return f"{self.server_url}{self.validate_path}"
+
+    def validate_token(self) -> dict:
+        response = requests.get(
+            self.validate_url,
+            headers={
+                "Authorization": f"Bearer {self.api_token}",
+                "Accept": "application/json",
+            },
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+
+        if not response.ok:
+            raise RuntimeError(
+                f"Authentication failed: {response.status_code} {response.text}"
+            )
+
+        payload = response.json()
+        if not payload.get("valid"):
+            raise RuntimeError("Authentication failed: token is not valid")
+
+        return payload
 
     def upload_csv(self, csv_path: Path) -> dict:
         with csv_path.open("rb") as file_handle:
@@ -371,23 +497,28 @@ class ReadyDirectoryUploader:
     def stop(self) -> None:
         self._stop_event.set()
 
+    def process_ready_files_once(self) -> int:
+        uploaded_count = 0
+        ready_files = sorted(self.paths.ready.glob("*.csv"))
+
+        for csv_path in ready_files:
+            if self._stop_event.is_set():
+                break
+
+            result = self.client.upload_csv(csv_path)
+            target_path = self.paths.sent / csv_path.name
+            csv_path.replace(target_path)
+            uploaded_count += 1
+            print_success(f"Uploaded {csv_path.name} → {result.get('status')}")
+
+        return uploaded_count
+
     def run(self) -> None:
         while not self._stop_event.is_set():
-            ready_files = sorted(self.paths.ready.glob("*.csv"))
-
-            for csv_path in ready_files:
-                if self._stop_event.is_set():
-                    break
-
-                try:
-                    result = self.client.upload_csv(csv_path)
-                    target_path = self.paths.sent / csv_path.name
-                    csv_path.replace(target_path)
-                    print(f"[UPLOAD] Sent {csv_path.name} → {result.get('status')}")
-                except Exception as exc:
-                    print(f"[UPLOAD] Failed {csv_path.name}: {exc}")
-                    time.sleep(UPLOAD_POLL_INTERVAL_SECONDS)
-                    break
+            try:
+                self.process_ready_files_once()
+            except Exception as exc:
+                print_warn(f"Background upload retry pending: {exc}")
 
             time.sleep(UPLOAD_POLL_INTERVAL_SECONDS)
 
@@ -422,29 +553,95 @@ def resolve_base_directory() -> Path:
     return Path(__file__).resolve().parent
 
 
+def build_validated_client(config_store: AppConfig) -> tuple[dict, UploadClient]:
+    while True:
+        app_config = config_store.load_or_prompt()
+
+        server_url = normalize_server_url(app_config["server_url"])
+        is_valid, reason = validate_server_url_format(server_url)
+        if not is_valid:
+            print_error(reason)
+            print_warn("Please re-enter configuration")
+            app_config = config_store.prompt_and_save()
+            continue
+
+        client = UploadClient(
+            server_url=server_url,
+            api_token=app_config["api_token"],
+            upload_path=app_config.get("upload_path", DEFAULT_UPLOAD_PATH),
+            validate_path=app_config.get("validate_path", DEFAULT_VALIDATE_PATH),
+        )
+
+        print_header("Server Authentication")
+        print_step(f"Validating remote access against: {client.server_url}")
+
+        try:
+            payload = client.validate_token()
+            user = payload.get("user", {})
+            print_success("Authentication successful")
+            print_info(f"Authenticated user: {user.get('username')} ({user.get('email')})")
+            return app_config, client
+        except Exception as exc:
+            print_error(str(exc))
+            retry = input("Re-enter server URL and token? [Y/n]: ").strip().lower()
+            if retry in {"", "y", "yes"}:
+                config_store.prompt_and_save()
+                continue
+            raise
+
+
+def process_pending_ready_files(paths: CapturePaths, uploader: ReadyDirectoryUploader) -> None:
+    pending_files = sorted(paths.ready.glob("*.csv"))
+
+    print_header("Pending Upload Check")
+    if not pending_files:
+        print_info("No older CSV files found in ready folder")
+        return
+
+    print_info(f"Found {len(pending_files)} pending CSV file(s) in ready folder")
+    print_step("Uploading pending files before live capture starts...")
+
+    try:
+        uploaded_count = uploader.process_ready_files_once()
+        print_success(f"Pending upload completed: {uploaded_count} file(s) sent")
+    except Exception as exc:
+        print_warn(f"Pending upload could not fully complete: {exc}")
+        print_warn("Remaining files will stay in ready folder and retry later")
+
+
 def main() -> None:
+    print_header("DeepEncryptNet HTTPS Capture Client")
+
     base_dir = resolve_base_directory()
     paths = CapturePaths(base_dir)
     paths.initialize()
 
-    config_store = AppConfig(base_dir)
-    app_config = config_store.load_or_prompt()
+    print_info(f"Base directory : {base_dir}")
+    print_info(f"Ready folder   : {paths.ready}")
+    print_info(f"Sent folder    : {paths.sent}")
 
-    upload_client = UploadClient(
-        server_url=app_config["server_url"],
-        api_token=app_config["api_token"],
-        upload_path=app_config.get("upload_path", DEFAULT_UPLOAD_PATH),
-    )
+    config_store = AppConfig(base_dir)
+    _, upload_client = build_validated_client(config_store)
 
     uploader = ReadyDirectoryUploader(paths, upload_client)
-    uploader_thread = threading.Thread(target=uploader.run, daemon=True)
-    uploader_thread.start()
+    process_pending_ready_files(paths, uploader)
 
+    print_header("Capture Preparation")
     tshark = TsharkLocator.locate()
+    print_success(f"tshark found: {tshark}")
+
     iface = NetworkInterfaceResolver(tshark).resolve()
     command = TsharkCommandFactory.build(tshark, iface)
 
+    uploader_thread = threading.Thread(target=uploader.run, daemon=True)
+    uploader_thread.start()
+    print_success("Background uploader started")
+
     writer = RotatingPacketWriter(paths)
+
+    print_header("Live Capture Started")
+    print_info("CSV batches will be written to writing/, moved to ready/, and uploaded automatically")
+    print_info("Press Ctrl+C to stop")
 
     try:
         CaptureSession(command, writer).start()

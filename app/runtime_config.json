@@ -6,7 +6,7 @@
     "streams_dir": "app/data/processing/streams_dir",
     "idle_timeout_sec": 10,
     "max_packets": 100,
-    "max_duration_sec": 20,
+    "max_duration_sec": 30,
     "auto_start": false,
     "mode": "live",
     "poll_interval_sec": 1,

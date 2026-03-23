@@ -24,8 +24,8 @@ services:
       PGDATA: /var/lib/postgresql/data
     volumes:
       - ../../logs:/data/logs
-      - ../../files:/data/files
-      - ../../tracker-exe/files:/data/files
+      - ../../files:/app/data/files
+      - ../../tracker-exe/files:/app/data/files
       - local_pg_data:/var/lib/postgresql/data
     restart: unless-stopped
 

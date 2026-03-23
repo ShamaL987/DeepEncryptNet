@@ -75,8 +75,6 @@ class SettingsManager:
         if "flow_daemon" not in data:
             raise KeyError("Missing required 'flow_daemon' section in YAML config")
 
-        if "database" not in data:
-            raise KeyError("Missing required 'database' section in YAML config")
 
         return data
 

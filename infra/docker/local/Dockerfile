@@ -36,7 +36,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:${PATH}"
 ENV APP_ENV=local
 ENV CONFIG_PATH=/app/app/config.local.yaml
-ENV FLOW_BASE_DIR=/data/files
 ENV PGDATA=/var/lib/postgresql/data
 
 WORKDIR /app

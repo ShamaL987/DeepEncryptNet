@@ -1,4 +1,4 @@
-# 🔐 DeepEncryptNet
+# 🔐 DeepEncryptNet CPU
 
 ## Trust-Aware Privacy-Preserving Encrypted Traffic Monitoring
 

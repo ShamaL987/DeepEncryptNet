@@ -14,6 +14,8 @@ from app.api.alerts_api import router as alerts_router
 from app.api.health_api import router as health_router
 from app.api.live_api import router as live_router
 from app.api.routed_api import router as routed_router
+from app.api.user_api import router as user_router
+from app.api.common_api import router as common_router
 from app.database.init_db import ensure_schema
 from app.services.flow_daemon_controller import FlowDaemonController
 from app.settings import get_settings_manager, log
@@ -62,6 +64,9 @@ def create_application() -> FastAPI:
     api_router.include_router(live_router)
     api_router.include_router(routed_router)
     api_router.include_router(upload_router)
+    api_router.include_router(common_router)
+    api_router.include_router(user_router)
+
     application.include_router(api_router)
 
 

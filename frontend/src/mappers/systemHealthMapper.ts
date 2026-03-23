@@ -34,6 +34,8 @@ export interface SystemHealthViewModel {
         enable_stats: boolean;
         mode: string;
         feature_pipeline: string;
+        save_processed_batch_file: boolean;
+        save_stream_files: boolean;
         system_delay: number;
     };
     healthCards: {
@@ -57,6 +59,8 @@ export interface SystemHealthViewModel {
         acceptedAccuracy: number | null;
         acceptedMacroF1: number | null;
     };
+    api_token: string | null;
+
 }
 
 export function mapOverviewToViewModel(
@@ -90,5 +94,6 @@ export function mapOverviewToViewModel(
             acceptedAccuracy: data.pipline_config.accepted_accuracy,
             acceptedMacroF1: data.pipline_config.accepted_macro_f1,
         },
+        api_token: data.api_token
     };
 }

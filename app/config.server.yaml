@@ -9,3 +9,7 @@ flow_daemon:
     dst_ip: "dst_ip"
     dst_port: "dst_port"
     protocol: "protocol"
+
+auth:
+  jwt_algorithm: "HS256"
+  jwt_access_token_expire_minutes: 6000

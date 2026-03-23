@@ -2,14 +2,14 @@ import type {
     LiveFlowsOverviewApiResponse,
     LiveFlowsQueryParams,
 } from "@/types/liveFlows";
-import {API_BASE} from "@/api/index.ts";
+import { apiGet } from "@/api/index.ts";
 
 function normalizeFilterValue(value: string): string {
     return value === "All" ? "all" : value;
 }
 
 export async function fetchLiveFlowsOverview(
-    params: LiveFlowsQueryParams
+    params: LiveFlowsQueryParams,
 ): Promise<LiveFlowsOverviewApiResponse> {
     const searchParams = new URLSearchParams();
     searchParams.set("limit", String(params.limit ?? 50));
@@ -18,12 +18,8 @@ export async function fetchLiveFlowsOverview(
     searchParams.set("reliability", normalizeFilterValue(params.reliability));
     searchParams.set("alerts_only", String(params.alertsOnly));
 
-    const response = await fetch(`${API_BASE}/live-flows/overview?${searchParams.toString()}`, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
+    const response = await apiGet(`/live-flows/overview?${searchParams.toString()}`);
+
     if (!response.ok) {
         throw new Error("Failed to fetch live flows overview");
     }

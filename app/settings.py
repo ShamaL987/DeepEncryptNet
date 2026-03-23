@@ -135,7 +135,7 @@ class SettingsManager:
     def _build_resolved_config(self) -> dict[str, Any]:
         return {
             "flow_daemon": deepcopy(self.runtime_config.get("flow_daemon", {})),
-            "database": self._build_database_config(),
+            "database": self._build_database_config() if self.app_env == "local" else {},
             "auth": self._build_auth_config(),
         }
 

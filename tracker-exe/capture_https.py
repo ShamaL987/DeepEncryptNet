@@ -1,23 +1,31 @@
 from __future__ import annotations
 
 import csv
+import json
 import platform
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+import requests
+
 BPF_FILTER = "tcp port 443 or udp port 443"
 SCHEMA_VERSION = "v1"
 
 ROTATE_EVERY_SECONDS = 60
 ROTATE_MAX_PACKETS = 10000
+UPLOAD_POLL_INTERVAL_SECONDS = 2
+REQUEST_TIMEOUT_SECONDS = 60
 
 FIELD_SEPARATOR = "\t"
+CONFIG_FILE_NAME = "deepencryptnet_client_config.json"
+DEFAULT_UPLOAD_PATH = "api/file-upload/ingest"
 
 CSV_COLUMNS = [
     "timestamp",
@@ -52,10 +60,53 @@ class CapturePaths:
         self.base = base_dir / "files" / "captures"
         self.writing = self.base / "writing"
         self.ready = self.base / "ready"
+        self.sent = self.base / "sent"
 
     def initialize(self) -> None:
         self.writing.mkdir(parents=True, exist_ok=True)
         self.ready.mkdir(parents=True, exist_ok=True)
+        self.sent.mkdir(parents=True, exist_ok=True)
+
+
+class AppConfig:
+    def __init__(self, base_dir: Path):
+        self.path = base_dir / CONFIG_FILE_NAME
+
+    def exists(self) -> bool:
+        return self.path.exists()
+
+    def load(self) -> dict:
+        if not self.exists():
+            raise RuntimeError("Configuration file does not exist")
+        return json.loads(self.path.read_text(encoding="utf-8"))
+
+    def save(self, data: dict) -> None:
+        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def load_or_prompt(self) -> dict:
+        if self.exists():
+            data = self.load()
+            if data.get("server_url") and data.get("api_token"):
+                return data
+
+        server_url = input("Enter server URL: ").strip().rstrip("/")
+        while not server_url:
+            print("Server URL is required")
+            server_url = input("Enter server URL: ").strip().rstrip("/")
+
+        api_token = input("Enter API token: ").strip()
+        while not api_token:
+            print("API token is required")
+            api_token = input("Enter API token: ").strip()
+
+        data = {
+            "schema_version": SCHEMA_VERSION,
+            "server_url": server_url,
+            "api_token": api_token,
+            "upload_path": DEFAULT_UPLOAD_PATH,
+        }
+        self.save(data)
+        return data
 
 
 class TsharkLocator:
@@ -280,11 +331,71 @@ class RotatingPacketWriter:
             self._close_batch()
 
 
+class UploadClient:
+    def __init__(self, server_url: str, api_token: str, upload_path: str):
+        self.server_url = server_url.rstrip("/")
+        self.api_token = api_token
+        self.upload_path = upload_path if upload_path.startswith("/") else f"/{upload_path}"
+
+    @property
+    def upload_url(self) -> str:
+        return f"{self.server_url}{self.upload_path}"
+
+    def upload_csv(self, csv_path: Path) -> dict:
+        with csv_path.open("rb") as file_handle:
+            response = requests.post(
+                self.upload_url,
+                headers={
+                    "Authorization": f"Bearer {self.api_token}",
+                },
+                files={
+                    "file": (csv_path.name, file_handle, "text/csv"),
+                },
+                timeout=REQUEST_TIMEOUT_SECONDS,
+            )
+
+        if not response.ok:
+            raise RuntimeError(
+                f"Upload failed for {csv_path.name}: {response.status_code} {response.text}"
+            )
+
+        return response.json()
+
+
+class ReadyDirectoryUploader:
+    def __init__(self, paths: CapturePaths, client: UploadClient):
+        self.paths = paths
+        self.client = client
+        self._stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def run(self) -> None:
+        while not self._stop_event.is_set():
+            ready_files = sorted(self.paths.ready.glob("*.csv"))
+
+            for csv_path in ready_files:
+                if self._stop_event.is_set():
+                    break
+
+                try:
+                    result = self.client.upload_csv(csv_path)
+                    target_path = self.paths.sent / csv_path.name
+                    csv_path.replace(target_path)
+                    print(f"[UPLOAD] Sent {csv_path.name} → {result.get('status')}")
+                except Exception as exc:
+                    print(f"[UPLOAD] Failed {csv_path.name}: {exc}")
+                    time.sleep(UPLOAD_POLL_INTERVAL_SECONDS)
+                    break
+
+            time.sleep(UPLOAD_POLL_INTERVAL_SECONDS)
+
+
 class CaptureSession:
     def __init__(self, command: list[str], writer: RotatingPacketWriter):
         self.command = command
         self.writer = writer
-        self.running = True
 
     def start(self) -> None:
         proc = subprocess.Popen(
@@ -316,12 +427,31 @@ def main() -> None:
     paths = CapturePaths(base_dir)
     paths.initialize()
 
+    config_store = AppConfig(base_dir)
+    app_config = config_store.load_or_prompt()
+
+    upload_client = UploadClient(
+        server_url=app_config["server_url"],
+        api_token=app_config["api_token"],
+        upload_path=app_config.get("upload_path", DEFAULT_UPLOAD_PATH),
+    )
+
+    uploader = ReadyDirectoryUploader(paths, upload_client)
+    uploader_thread = threading.Thread(target=uploader.run, daemon=True)
+    uploader_thread.start()
+
     tshark = TsharkLocator.locate()
     iface = NetworkInterfaceResolver(tshark).resolve()
     command = TsharkCommandFactory.build(tshark, iface)
 
     writer = RotatingPacketWriter(paths)
-    CaptureSession(command, writer).start()
+
+    try:
+        CaptureSession(command, writer).start()
+    except KeyboardInterrupt:
+        print("\n[APP] Stopping capture")
+    finally:
+        uploader.stop()
 
 
 if __name__ == "__main__":

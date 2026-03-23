@@ -23,6 +23,7 @@ ROTATE_EVERY_SECONDS = 60
 ROTATE_MAX_PACKETS = 10000
 UPLOAD_POLL_INTERVAL_SECONDS = 2
 REQUEST_TIMEOUT_SECONDS = 60
+LIVE_STATUS_PRINT_INTERVAL_SECONDS = 2
 
 FIELD_SEPARATOR = "\t"
 CONFIG_FILE_NAME = "deepencryptnet_client_config.json"
@@ -107,6 +108,34 @@ def validate_server_url_format(server_url: str) -> tuple[bool, str]:
         return False, "Server URL must use HTTPS for remote servers"
 
     return True, ""
+
+
+def disable_windows_quick_edit_mode() -> None:
+    if platform.system().lower() != "windows":
+        return
+
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-10)
+        if handle == 0 or handle == -1:
+            return
+
+        mode = ctypes.c_uint()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)) == 0:
+            return
+
+        ENABLE_QUICK_EDIT_MODE = 0x0040
+        ENABLE_EXTENDED_FLAGS = 0x0080
+
+        new_mode = mode.value
+        new_mode |= ENABLE_EXTENDED_FLAGS
+        new_mode &= ~ENABLE_QUICK_EDIT_MODE
+
+        kernel32.SetConsoleMode(handle, new_mode)
+    except Exception:
+        pass
 
 
 class CapturePaths:
@@ -252,9 +281,12 @@ class NetworkInterfaceResolver:
             proc = subprocess.run(
                 [
                     self.tshark_path,
-                    "-i", str(index),
-                    "-f", BPF_FILTER,
-                    "-a", "duration:1",
+                    "-i",
+                    str(index),
+                    "-f",
+                    BPF_FILTER,
+                    "-a",
+                    "duration:1",
                 ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -298,12 +330,17 @@ class TsharkCommandFactory:
     def build(tshark_path: Path, interface_index: int) -> list[str]:
         cmd = [
             str(tshark_path),
-            "-i", str(interface_index),
-            "-f", BPF_FILTER,
+            "-i",
+            str(interface_index),
+            "-f",
+            BPF_FILTER,
             "-l",
-            "-T", "fields",
-            "-E", f"separator={FIELD_SEPARATOR}",
-            "-E", "header=n",
+            "-T",
+            "fields",
+            "-E",
+            f"separator={FIELD_SEPARATOR}",
+            "-E",
+            "header=n",
         ]
         for field in TSHARK_FIELDS:
             cmd.extend(["-e", field])
@@ -357,14 +394,110 @@ class PacketParser:
         ]
 
 
+class LiveStatus:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.capture_session_id = ""
+        self.current_batch_id = 0
+        self.current_batch_packets = 0
+        self.total_captured_packets = 0
+        self.total_ready_batches = 0
+        self.total_uploaded_files = 0
+        self.last_capture_at = 0.0
+        self.last_upload_at = 0.0
+        self.last_upload_name = ""
+        self.last_ready_name = ""
+
+    def set_capture_session(self, capture_session_id: str) -> None:
+        with self._lock:
+            self.capture_session_id = capture_session_id
+
+    def start_batch(self, batch_id: int) -> None:
+        with self._lock:
+            self.current_batch_id = batch_id
+            self.current_batch_packets = 0
+
+    def mark_capture(self, packet_count: int = 1) -> None:
+        with self._lock:
+            self.current_batch_packets += packet_count
+            self.total_captured_packets += packet_count
+            self.last_capture_at = time.time()
+
+    def mark_batch_ready(self, batch_name: str) -> None:
+        with self._lock:
+            self.total_ready_batches += 1
+            self.last_ready_name = batch_name
+
+    def mark_upload(self, file_name: str) -> None:
+        with self._lock:
+            self.total_uploaded_files += 1
+            self.last_upload_at = time.time()
+            self.last_upload_name = file_name
+
+    def snapshot(self) -> dict[str, str | int | float]:
+        with self._lock:
+            return {
+                "capture_session_id": self.capture_session_id,
+                "current_batch_id": self.current_batch_id,
+                "current_batch_packets": self.current_batch_packets,
+                "total_captured_packets": self.total_captured_packets,
+                "total_ready_batches": self.total_ready_batches,
+                "total_uploaded_files": self.total_uploaded_files,
+                "last_capture_at": self.last_capture_at,
+                "last_upload_at": self.last_upload_at,
+                "last_upload_name": self.last_upload_name,
+                "last_ready_name": self.last_ready_name,
+            }
+
+
+class LiveConsolePrinter:
+    def __init__(
+        self,
+        status: LiveStatus,
+        paths: CapturePaths,
+        interval_seconds: int = LIVE_STATUS_PRINT_INTERVAL_SECONDS,
+    ) -> None:
+        self.status = status
+        self.paths = paths
+        self.interval_seconds = interval_seconds
+        self._stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def run(self) -> None:
+        while not self._stop_event.is_set():
+            snap = self.status.snapshot()
+            ready_count = len(list(self.paths.ready.glob("*.csv")))
+
+            print_info(
+                "Capturing..."
+                f" session={snap['capture_session_id'] or '-'}"
+                f" batch={snap['current_batch_id']}"
+                f" batch_packets={snap['current_batch_packets']}"
+                f" total_packets={snap['total_captured_packets']}"
+            )
+            print_info(
+                "Uploading..."
+                f" ready_files={ready_count}"
+                f" uploaded_files={snap['total_uploaded_files']}"
+                f" last_ready={snap['last_ready_name'] or '-'}"
+                f" last_uploaded={snap['last_upload_name'] or '-'}"
+            )
+
+            self._stop_event.wait(self.interval_seconds)
+
+
 class RotatingPacketWriter:
     def __init__(
         self,
         paths: CapturePaths,
+        live_status: LiveStatus,
         rotate_interval_sec: int = ROTATE_EVERY_SECONDS,
         rotate_max_packets: int = ROTATE_MAX_PACKETS,
     ):
         self.paths = paths
+        self.live_status = live_status
         self.rotate_interval_sec = rotate_interval_sec
         self.rotate_max_packets = rotate_max_packets
         self.capture_session_id = self._generate_capture_session_id()
@@ -377,6 +510,7 @@ class RotatingPacketWriter:
         self.writer = None
         self.current_tmp = None
 
+        self.live_status.set_capture_session(self.capture_session_id)
         self._open_new_batch()
 
     @staticmethod
@@ -399,20 +533,33 @@ class RotatingPacketWriter:
         self.file = self.current_tmp.open("w", newline="", encoding="utf-8")
         self.writer = csv.writer(self.file)
         self.writer.writerow(CSV_COLUMNS)
+        self.live_status.start_batch(self.batch_id)
 
     def _close_batch(self) -> None:
+        if not self.file or not self.current_tmp:
+            return
+
         self.file.flush()
         self.file.close()
 
         final_csv = self.paths.ready / self.current_tmp.with_suffix(".csv").name
         self.current_tmp.replace(final_csv)
 
+        self.live_status.mark_batch_ready(final_csv.name)
         print_info(f"Closed batch and moved to ready: {final_csv.name}")
 
+        self.file = None
+        self.writer = None
+        self.current_tmp = None
+
     def write_row(self, row: list[str]) -> None:
+        if not self.writer:
+            return
+
         now = time.time()
         self.writer.writerow(row)
         self.packet_count += 1
+        self.live_status.mark_capture(1)
 
         should_rotate_by_time = (now - self.start_time) >= self.rotate_interval_sec
         should_rotate_by_packets = self.packet_count >= self.rotate_max_packets
@@ -489,9 +636,10 @@ class UploadClient:
 
 
 class ReadyDirectoryUploader:
-    def __init__(self, paths: CapturePaths, client: UploadClient):
+    def __init__(self, paths: CapturePaths, client: UploadClient, live_status: LiveStatus):
         self.paths = paths
         self.client = client
+        self.live_status = live_status
         self._stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -509,6 +657,7 @@ class ReadyDirectoryUploader:
             target_path = self.paths.sent / csv_path.name
             csv_path.replace(target_path)
             uploaded_count += 1
+            self.live_status.mark_upload(csv_path.name)
             print_success(f"Uploaded {csv_path.name} → {result.get('status')}")
 
         return uploaded_count
@@ -520,7 +669,7 @@ class ReadyDirectoryUploader:
             except Exception as exc:
                 print_warn(f"Background upload retry pending: {exc}")
 
-            time.sleep(UPLOAD_POLL_INTERVAL_SECONDS)
+            self._stop_event.wait(UPLOAD_POLL_INTERVAL_SECONDS)
 
 
 class CaptureSession:
@@ -538,13 +687,21 @@ class CaptureSession:
         )
 
         try:
+            if proc.stdout is None:
+                raise RuntimeError("tshark stdout pipe is not available")
+
             for line in proc.stdout:
                 parsed = PacketParser.parse(line)
                 if parsed:
                     self.writer.write_row(parsed)
         finally:
             self.writer.close()
-            proc.terminate()
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
 
 
 def resolve_base_directory() -> Path:
@@ -610,6 +767,8 @@ def process_pending_ready_files(paths: CapturePaths, uploader: ReadyDirectoryUpl
 
 
 def main() -> None:
+    disable_windows_quick_edit_mode()
+
     print_header("DeepEncryptNet HTTPS Capture Client")
 
     base_dir = resolve_base_directory()
@@ -623,7 +782,8 @@ def main() -> None:
     config_store = AppConfig(base_dir)
     _, upload_client = build_validated_client(config_store)
 
-    uploader = ReadyDirectoryUploader(paths, upload_client)
+    live_status = LiveStatus()
+    uploader = ReadyDirectoryUploader(paths, upload_client, live_status)
     process_pending_ready_files(paths, uploader)
 
     print_header("Capture Preparation")
@@ -637,11 +797,16 @@ def main() -> None:
     uploader_thread.start()
     print_success("Background uploader started")
 
-    writer = RotatingPacketWriter(paths)
+    live_printer = LiveConsolePrinter(live_status, paths)
+    live_printer_thread = threading.Thread(target=live_printer.run, daemon=True)
+    live_printer_thread.start()
+    print_success("Live console printer started")
+
+    writer = RotatingPacketWriter(paths, live_status)
 
     print_header("Live Capture Started")
     print_info("CSV batches will be written to writing/, moved to ready/, and uploaded automatically")
-    print_info("Press Ctrl+C to stop")
+    print_info("The process will keep printing capture/upload status until you close the window or press Ctrl+C")
 
     try:
         CaptureSession(command, writer).start()
@@ -649,6 +814,9 @@ def main() -> None:
         print("\n[APP] Stopping capture")
     finally:
         uploader.stop()
+        live_printer.stop()
+        uploader_thread.join(timeout=2)
+        live_printer_thread.join(timeout=2)
 
 
 if __name__ == "__main__":

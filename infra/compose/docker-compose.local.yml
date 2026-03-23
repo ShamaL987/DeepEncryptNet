@@ -9,8 +9,11 @@ services:
       - "5432:5432"
     environment:
       APP_ENV: local
-      CONFIG_PATH: /app/app/config.local.yaml
-      FLOW_BASE_DIR: /data/files
+      ADMIN_BOOTSTRAP_TOKEN: WksdJhAhFTgjuqnmRZPozSmqMEC8EkaHuOEHl0Md3As
+      JWT_SECRET_KEY: pOorLFNz4A5MirWucPZPzlQnCiv_02nnL6hElKBiNz6AFIZbCNbt9ZRqdrBtirZAB5pnjt6c4BFa2ECLsUhzXg
+      JWT_ALGORITHM: HS256
+      JWT_TIME: 6000
+      API_TOKEN_ENCRYPTION_KEY: kgFGS75iDhrDEPCpjmKR756BKhYBT_DfXLKp9DY3msw=
 
       DATABASE_HOST: 127.0.0.1
       DATABASE_PORT: 5432

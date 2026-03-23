@@ -1,4 +1,4 @@
-# 🔐 DeepEncryptNet
+# 🔐 DeepEncryptNet CUDA
 
 ## Trust-Aware Privacy-Preserving Encrypted Traffic Monitoring
 

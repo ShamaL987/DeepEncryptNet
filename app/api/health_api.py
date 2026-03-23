@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api import get_settings_manager_from_request, get_controller
+from app.api.user_api import _get_current_user, _decrypt_api_token
 from app.database.db import get_db
 from app.pipeline.registry import get_pipeline_model_display_config
 from app.services.health import calculate_pipeline_health_metrics
@@ -85,12 +86,22 @@ def update_flow_daemon_config(payload: FlowDaemonConfigPayload, request: Request
     }
 
 @router.get("/overview")
-def get_flow_overview(request: Request, db: Session = Depends(get_db)):
+def get_flow_overview(request: Request, db: Session = Depends(get_db), authorization: Optional[str] = Header(default=None),
+):
     controller = get_controller(request)
     settings_manager = get_settings_manager_from_request(request)
 
     runtime_config = settings_manager.get_runtime_config()
     pipline_name = runtime_config['flow_daemon'].get('feature_pipeline')
+
+    current_user = _get_current_user(
+        db=db,
+        authorization=authorization,
+        request=request,
+    )
+    readable_api_token = None
+    if current_user.api_token_encrypted and not current_user.is_token_revoked:
+        readable_api_token = _decrypt_api_token(current_user.api_token_encrypted, request)
 
     is_running = controller.is_running
     health = calculate_pipeline_health_metrics(db) if is_running else {}
@@ -102,4 +113,5 @@ def get_flow_overview(request: Request, db: Session = Depends(get_db)):
         "runtime_config": runtime_config,
         "health": health,
         "pipline_config": get_pipeline_model_display_config(pipline_name),
+        "api_token": readable_api_token,
     }

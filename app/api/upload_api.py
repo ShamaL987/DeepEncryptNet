@@ -1,15 +1,24 @@
 from pathlib import Path
 import uuid
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends, Header
+from sqlalchemy.orm import Session
 
 from app.api import get_settings_manager_from_request
+from app.database.db import get_db
+from app.utils.validator import validate_ingest_api_token
 
 router = APIRouter(prefix="/file-upload", tags=["File Upload"])
 
 
 @router.post("/ingest")
-async def upload_batch(request: Request, file: UploadFile = File(...)):
+async def upload_batch(
+    request: Request, file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    x_api_key: str | None = Header(default=None)
+):
+    validate_ingest_api_token(db=db, raw_token=x_api_key)
+
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed.")
 

@@ -1,19 +1,20 @@
 {
   "flow_daemon": {
-    "ready_dir": "D:/FYP_DEV/tracker-exe/files/captures/ready/",
-    "processing_dir": "data/files/processing/processing_dir",
-    "processed_dir": "data/files/processing/processed_dir",
-    "streams_dir": "data/files/processing/streams_dir",
+    "ready_dir": "data/captures/ready/",
+    "processing_dir": "data/processing/processing_dir",
+    "processed_dir": "data/processing/processed_dir",
+    "streams_dir": "data/processing/streams_dir",
     "idle_timeout_sec": 10,
     "max_packets": 100,
-    "max_duration_sec": 20,
+    "max_duration_sec": 30,
     "auto_start": false,
     "mode": "live",
-    "poll_interval_sec": 1,
+    "poll_interval_sec": 2,
     "enable_stats": true,
     "feature_pipeline": "ISCX_V2",
     "timeout": 20,
     "save_processed_batch_file": false,
-    "save_stream_files": false
+    "save_stream_files": false,
+    "system_delay": 20
   }
 }

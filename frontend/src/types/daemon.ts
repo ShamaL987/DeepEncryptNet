@@ -17,6 +17,8 @@ export interface FlowDaemonOverviewResponse {
             enable_stats: boolean;
             feature_pipeline: string;
             timeout: number;
+            save_processed_batch_file: boolean;
+            save_stream_files: boolean;
         };
     };
     health: {
@@ -42,4 +44,5 @@ export interface FlowDaemonOverviewResponse {
         accepted_accuracy: number | null;
         accepted_macro_f1: number | null;
     };
+    api_token: string | null;
 }

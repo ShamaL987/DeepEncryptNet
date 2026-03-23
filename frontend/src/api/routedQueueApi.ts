@@ -1,19 +1,14 @@
 import type { RoutedQueueOverviewApiResponse } from "@/types/routedQueue";
-import {API_BASE} from "@/api/index.ts";
+import { apiGet } from "@/api/index.ts";
 
 export async function fetchRoutedQueueOverview(
-    limit = 50
+    limit = 50,
 ): Promise<RoutedQueueOverviewApiResponse> {
     const params = new URLSearchParams({
         limit: String(limit),
     });
 
-    const response = await fetch(`${API_BASE}/routed/overview?${params.toString()}`, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
+    const response = await apiGet(`/routed/overview?${params.toString()}`);
 
     if (!response.ok) {
         throw new Error("Failed to fetch routed queue overview");

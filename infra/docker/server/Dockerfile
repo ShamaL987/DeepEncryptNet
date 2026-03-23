@@ -1,6 +1,9 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
 
+ARG VITE_APP_ENV
+ENV VITE_APP_ENV=$VITE_APP_ENV
+
 COPY frontend/package.json frontend/yarn.lock ./
 RUN yarn install --frozen-lockfile
 
@@ -20,10 +23,10 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-editable
+RUN uv sync --frozen --no-install-project --no-editable --no-dev
 
 COPY app ./app
-RUN uv sync --frozen --no-editable
+RUN uv sync --frozen --no-editable --no-dev
 
 
 FROM python:3.12-slim-bookworm
@@ -31,8 +34,8 @@ FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:${PATH}"
-ENV APP_ENV=server
-ENV CONFIG_PATH=/app/app/config.server.yaml
+ENV APP_ENV=${APP_ENV}
+ENV RUNTIME_CONFIG_PATH=/app/app/runtime_config.json
 ENV FLOW_BASE_DIR=/data/files
 
 WORKDIR /app

@@ -14,16 +14,26 @@ import {
   RotateCcw,
   Settings,
   Loader2,
+  ShieldOff,
+  KeyRound,
+  Check,
+  Copy,
 } from "lucide-react";
 import { useSimulatedLoading } from "@/hooks/use-simulated-loading";
-import { PipelineSkeleton, MetricSkeleton, ChartSkeleton } from "@/components/Skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { PipelineConfigPanel } from "@/components/PipelineConfigPanel";
 import { toast } from "sonner";
-import { fetchOverview, restartPipeline, startPipeline, stopPipeline } from "@/api/healthApi.ts";
+import {
+  fetchOverview,
+  restartPipeline,
+  startPipeline,
+  stopPipeline,
+} from "@/api/healthApi.ts";
 import { usePolling } from "@/hooks/usePolling.ts";
 import { mapOverviewToViewModel } from "@/mappers/systemHealthMapper.ts";
+import { generateApiToken, revokeApiToken } from "@/api/login.ts";
+import { Textarea } from "@/components/ui/textarea.tsx";
 
 function MetricCard({
                       label,
@@ -40,7 +50,9 @@ function MetricCard({
       <div className="bg-secondary/50 rounded-md p-4 border border-border">
         <div className="flex items-center gap-2 mb-2">
           <Icon className="h-4 w-4 text-muted-foreground" />
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
         </div>
         <p className="text-xl font-bold font-mono text-foreground">
           {value}
@@ -59,8 +71,13 @@ export default function SystemHealth() {
   const [restarting, setRestarting] = useState(false);
   const [pipelineRunningOverride, setPipelineRunningOverride] = useState<boolean | null>(null);
 
+  const [tokenOverride, setTokenOverride] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [revokingToken, setRevokingToken] = useState(false);
+
   const fetchOverviewStable = useCallback(() => fetchOverview(), []);
-  const { data, refetch} = usePolling(fetchOverviewStable, 5000);
+  const { data, refetch } = usePolling(fetchOverviewStable, 5000);
 
   const viewModel = useMemo(() => {
     return data ? mapOverviewToViewModel(data) : null;
@@ -71,11 +88,23 @@ export default function SystemHealth() {
       pipelineRunningOverride !== null ? pipelineRunningOverride : polledPipelineRunning;
   const config = viewModel?.config;
 
+  const polledToken = viewModel?.api_token ?? "";
+  const displayedToken = tokenOverride !== null ? tokenOverride : polledToken;
+
   useEffect(() => {
-    if (pipelineRunningOverride !== null && pipelineRunningOverride === polledPipelineRunning) {
+    if (
+        pipelineRunningOverride !== null &&
+        pipelineRunningOverride === polledPipelineRunning
+    ) {
       setPipelineRunningOverride(null);
     }
   }, [pipelineRunningOverride, polledPipelineRunning]);
+
+  useEffect(() => {
+    if (tokenOverride !== null && tokenOverride === polledToken) {
+      setTokenOverride(null);
+    }
+  }, [tokenOverride, polledToken]);
 
   const pipelineStatus: { stage: string; status: "yes" | "no" }[] = [
     {
@@ -137,6 +166,67 @@ export default function SystemHealth() {
       toast.error("Failed to restart pipeline");
     } finally {
       setRestarting(false);
+    }
+  };
+
+  const handleGenerateToken = async () => {
+    if (generatingToken || revokingToken) return;
+
+    setGeneratingToken(true);
+    try {
+      const result = await generateApiToken();
+      setTokenOverride(result.token);
+      setCopied(false);
+      await refetch();
+
+      toast.success("Token generated", {
+        description: result.replaced_existing
+            ? "Existing API token was replaced"
+            : "New API token is ready",
+      });
+    } catch (error) {
+      const message =
+          error instanceof Error ? error.message : "Failed to generate token";
+      toast.error(message);
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    if (!displayedToken || generatingToken || revokingToken) return;
+
+    setRevokingToken(true);
+    try {
+      const result = await revokeApiToken();
+
+      if (result.revoked) {
+        setTokenOverride("");
+        setCopied(false);
+        await refetch();
+        toast.success("Token revoked");
+      } else {
+        toast.info(result.message || "No API token exists for this user");
+      }
+    } catch (error) {
+      const message =
+          error instanceof Error ? error.message : "Failed to revoke token";
+      toast.error(message);
+    } finally {
+      setRevokingToken(false);
+    }
+  };
+
+  const handleCopyToken = async () => {
+    if (!displayedToken) return;
+
+    try {
+      await navigator.clipboard.writeText(displayedToken);
+      setCopied(true);
+      toast.success("Token copied to clipboard");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy token");
     }
   };
 
@@ -275,7 +365,9 @@ export default function SystemHealth() {
                               backgroundColor: pipelineRunning
                                   ? "hsla(142,70%,49%,0.15)"
                                   : "hsla(0,72%,51%,0.15)",
-                              color: pipelineRunning ? "hsl(142,70%,49%)" : "hsl(0,72%,51%)",
+                              color: pipelineRunning
+                                  ? "hsl(142,70%,49%)"
+                                  : "hsl(0,72%,51%)",
                             }}
                         >
                       {pipelineRunning ? "RUNNING" : "STOPPED"}
@@ -333,6 +425,72 @@ export default function SystemHealth() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <div className="flex justify-center">
+                  <Card className="bg-card border-border w-full max-w-4xl">
+                    <CardHeader className="pb-2 pt-4 px-4">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-chart-blue" />
+                        API Token Management
+                      </CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="px-4 pb-4">
+                      <div className="flex items-start gap-2 flex-col xl:flex-row">
+                        <div className="flex-1 relative w-full min-w-0">
+                          <Textarea
+                              readOnly
+                              value={displayedToken}
+                              placeholder="No token generated"
+                              className="font-mono text-[11px] leading-tight resize-none h-10 min-h-10 w-full bg-secondary/50 border-border pr-12 whitespace-nowrap overflow-x-auto"
+                          />
+
+                          {displayedToken && (
+                              <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-foreground"
+                                  onClick={handleCopyToken}
+                              >
+                                {copied ? (
+                                    <Check className="h-3.5 w-3.5" />
+                                ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                          )}
+                        </div>
+
+                        <Button
+                            onClick={handleGenerateToken}
+                            disabled={generatingToken || revokingToken}
+                            className="h-10 px-3 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md min-w-[105px]"
+                        >
+                          {generatingToken ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                              <KeyRound className="h-4 w-4" />
+                          )}
+                          Generate
+                        </Button>
+
+                        <Button
+                            variant="destructive"
+                            onClick={handleRevokeToken}
+                            disabled={!displayedToken || generatingToken || revokingToken}
+                            className="h-10 px-3 gap-1.5 shadow-md min-w-[100px]"
+                        >
+                          {revokingToken ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                              <ShieldOff className="h-4 w-4" />
+                          )}
+                          Revoke
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 <Card className="bg-card border-border">
                   <CardHeader className="pb-2 pt-4 px-4">
@@ -395,12 +553,17 @@ export default function SystemHealth() {
                       {[
                         ["Model Version", viewModel?.pipelineConfig?.pipelineName],
                         ["Model Name", viewModel?.pipelineConfig?.pipelineVersion],
-                        ["Pipeline Accuracy (Overall)", viewModel?.pipelineConfig?.acceptedAccuracy],
+                        [
+                          "Pipeline Accuracy (Overall)",
+                          viewModel?.pipelineConfig?.acceptedAccuracy,
+                        ],
                         ["Coverage", viewModel?.pipelineConfig?.coverage],
                       ].map(([k, v]) => (
                           <div key={k as string}>
                             <p className="text-[10px] text-muted-foreground uppercase">{k}</p>
-                            <p className="text-sm font-mono font-semibold text-foreground mt-1">{v}</p>
+                            <p className="text-sm font-mono font-semibold text-foreground mt-1">
+                              {v}
+                            </p>
                           </div>
                       ))}
                     </div>

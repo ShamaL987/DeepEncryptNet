@@ -9,11 +9,12 @@
     "max_duration_sec": 30,
     "auto_start": false,
     "mode": "live",
-    "poll_interval_sec": 1,
+    "poll_interval_sec": 2,
     "enable_stats": true,
     "feature_pipeline": "ISCX_V2",
     "timeout": 20,
     "save_processed_batch_file": false,
-    "save_stream_files": false
+    "save_stream_files": false,
+    "system_delay": 20
   }
 }

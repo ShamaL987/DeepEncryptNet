@@ -30,6 +30,7 @@ dev = [
   "pytest==9.0.2",
   "notebook==7.4.7",
   "pyinstaller==6.16.0",
+  "dotenv>=0.9.9",
 ]
 
 [tool.uv]

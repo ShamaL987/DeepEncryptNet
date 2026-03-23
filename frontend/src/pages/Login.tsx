@@ -109,7 +109,7 @@ export default function Login() {
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
             </Button>
             <p className="text-[10px] text-center text-muted-foreground">
-              Demo mode — any credentials will work
+              Intelligence beyond encryption.
             </p>
           </form>
         </CardContent>

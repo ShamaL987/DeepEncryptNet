@@ -8,8 +8,7 @@ from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-import yaml
+from dotenv import load_dotenv
 
 
 logging.basicConfig(
@@ -21,36 +20,48 @@ logging.basicConfig(
 log = logging.getLogger("FlowDaemon")
 
 
-import os
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _runtime_json_path() -> Path:
+    return _project_root() / "app" / "runtime_config.json"
+
+
+def _load_local_env_file_if_applicable() -> None:
+    raw_app_env = (os.getenv("APP_ENV") or "").strip().lower()
+
+    if raw_app_env not in {"", "local"}:
+        return
+
+    env_path = _project_root() / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=False)
 
 
 class EnvNamespace:
-    LOCAL_MOCK_DEFAULTS = {
-        "ADMIN_BOOTSTRAP_TOKEN": "123456789",
-        "JWT_SECRET_KEY": "jwt-secret-local",
-        "JWT_ALGORITHM": "HS256",
-        "JWT_TIME": 10000,
-        "API_TOKEN_ENCRYPTION_KEY": "tPQ2uA9fB4Kaq4F9TwxtoZBp2AQ9KQl6IsfaNH-B7Xc="
-    }
+    VALID_ENVS = {"local", "staging", "production"}
+
+    def __init__(self) -> None:
+        _load_local_env_file_if_applicable()
+        self._app_env = self._resolve_app_env()
+
+    def _resolve_app_env(self) -> str:
+        raw_env = (os.getenv("APP_ENV") or "local").strip().lower()
+        return raw_env if raw_env in self.VALID_ENVS else "local"
+
+    def reload(self) -> None:
+        self._app_env = self._resolve_app_env()
 
     @property
     def app_env(self) -> str:
-        raw_env = (os.getenv("APP_ENV") or "").strip().lower()
-        return raw_env if raw_env in {"staging", "production"} else "local"
-
-    def __getattr__(self, name: str) -> str | None:
-        return self.get(name)
-
-    def __getitem__(self, name: str) -> str | None:
-        return self.get(name)
+        return self._app_env
 
     def get(self, name: str, default: str | None = None, required: bool = False) -> str | None:
         value = os.getenv(name)
-        if value:
-            return value
 
-        if self.app_env == "local" and name in self.LOCAL_MOCK_DEFAULTS:
-            return self.LOCAL_MOCK_DEFAULTS[name]
+        if value not in {None, ""}:
+            return value
 
         if default is not None:
             return default
@@ -60,123 +71,84 @@ class EnvNamespace:
 
         return None
 
-    def as_dict(self) -> dict[str, str]:
-        merged = dict(os.environ)
-
-        if self.app_env == "local":
-            for key, value in self.LOCAL_MOCK_DEFAULTS.items():
-                merged.setdefault(key, value)
-
-        merged["APP_ENV"] = self.app_env
-        return merged
-
 
 class SettingsManager:
-    def __init__(self, yaml_path: str | None = None):
+    def __init__(self) -> None:
         self._lock = threading.RLock()
         self.env = EnvNamespace()
+        self.app_env = self.env.app_env
 
-        self.app_env = (self.env.get("APP_ENV", "local") or "local").strip().lower()
-
-        self.yaml_path = Path(yaml_path or self._resolve_yaml_path()).resolve()
-        self.yaml_config = self._load_yaml(self.yaml_path)
-
-        flow_daemon_cfg = self.yaml_config.get("flow_daemon", {})
-        runtime_json_path = flow_daemon_cfg.get("runtime_json_path")
-        if not runtime_json_path:
-            raise KeyError("Missing 'flow_daemon.runtime_json_path' in YAML config")
-
-        # runtime_json_path_obj = Path(runtime_json_path)
-        # if not runtime_json_path_obj.is_absolute():
-        #     runtime_json_path_obj = runtime_json_path_obj.resolve()
-
-        self.runtime_json_path =  Path(runtime_json_path)
+        self.runtime_json_path = _runtime_json_path()
         self.runtime_json_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.runtime_config = self._load_or_create_runtime_json()
         self.resolved_config = self._build_resolved_config()
 
-    def _resolve_yaml_path(self) -> str:
-        explicit = self.env.get("CONFIG_PATH")
-        if explicit:
-            return str(Path(explicit).resolve())
+    def _normalize_runtime_config(self, data: dict[str, Any]) -> dict[str, Any]:
+        normalized = deepcopy(data)
+        flow_daemon = normalized.get("flow_daemon")
 
-        base_dir = Path(__file__).resolve().parent
+        if flow_daemon is None:
+            normalized["flow_daemon"] = {}
+        elif not isinstance(flow_daemon, dict):
+            raise ValueError("'flow_daemon' in runtime JSON must be an object")
 
-        config_file_by_env = {
-            "staging": "config.local.yaml",
-            "production": "config.server.yaml",
-        }
-
-        selected_file = config_file_by_env.get(self.app_env, "config.local.yaml")
-        return str((base_dir / selected_file).resolve())
-
-    def _load_yaml(self, path: Path) -> dict[str, Any]:
-        if not path.exists():
-            raise FileNotFoundError(f"YAML config file not found: {path.resolve()}")
-
-        try:
-            with path.open("r", encoding="utf-8") as file:
-                data = yaml.safe_load(file) or {}
-        except yaml.YAMLError as exc:
-            raise ValueError(f"Failed to parse YAML config: {exc}") from exc
-
-        if "flow_daemon" not in data:
-            raise KeyError("Missing required 'flow_daemon' section in YAML config")
-
-        return data
+        return normalized
 
     def _load_or_create_runtime_json(self) -> dict[str, Any]:
         if not self.runtime_json_path.exists():
-            self._write_runtime_json({})
-            return {}
+            initial_data = {"flow_daemon": {}}
+            self._write_runtime_json(initial_data)
+            return initial_data
 
-        try:
-            with self.runtime_json_path.open("r", encoding="utf-8") as file:
-                data = json.load(file) or {}
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Failed to parse runtime JSON config: {exc}") from exc
+        with self.runtime_json_path.open("r", encoding="utf-8") as file:
+            data = json.load(file) or {}
 
         if not isinstance(data, dict):
             raise ValueError("Runtime JSON config must contain a JSON object")
 
-        return data
+        normalized = self._normalize_runtime_config(data)
+        if normalized != data:
+            self._write_runtime_json(normalized)
+
+        return normalized
 
     def _write_runtime_json(self, data: dict[str, Any]) -> None:
         with self.runtime_json_path.open("w", encoding="utf-8") as file:
             json.dump(data, file, indent=2)
 
+    def _build_database_config(self) -> dict[str, Any]:
+        return {
+            "host": str(self.get_env("DATABASE_HOST", required=True)),
+            "port": int(self.get_env("DATABASE_PORT", default="5432")),
+            "name": str(self.get_env("DATABASE_NAME", required=True)),
+            "user": str(self.get_env("DATABASE_USER", required=True)),
+            "password": str(self.get_env("DATABASE_PASSWORD", required=True)),
+        }
+
+    def _build_auth_config(self) -> dict[str, Any]:
+        return {
+            "jwt_algorithm": str(self.get_env("JWT_ALGORITHM", required=True)),
+            "jwt_access_token_expire_minutes": int(self.get_env("JWT_TIME", required=True)),
+        }
+
     def _build_resolved_config(self) -> dict[str, Any]:
-        merged = deepcopy(self.yaml_config)
-
-        yaml_flow_daemon = deepcopy(self.yaml_config.get("flow_daemon", {}))
-        yaml_flow_daemon.pop("runtime_json_path", None)
-
-        runtime_flow_daemon = deepcopy(self.runtime_config.get("flow_daemon", {}))
-        if not isinstance(runtime_flow_daemon, dict):
-            raise ValueError("'flow_daemon' in runtime JSON must be an object")
-
-        yaml_flow_daemon.update(runtime_flow_daemon)
-        merged["flow_daemon"] = yaml_flow_daemon
-
-        return merged
+        return {
+            "flow_daemon": deepcopy(self.runtime_config.get("flow_daemon", {})),
+            "database": self._build_database_config(),
+            "auth": self._build_auth_config(),
+        }
 
     def reload(self) -> None:
         with self._lock:
-            self.app_env = (self.env.get("APP_ENV", "local") or "local").strip().lower()
-            self.yaml_path = Path(self._resolve_yaml_path()).resolve()
-            self.yaml_config = self._load_yaml(self.yaml_path)
+            self.env.reload()
+            self.app_env = self.env.app_env
             self.runtime_config = self._load_or_create_runtime_json()
             self.resolved_config = self._build_resolved_config()
 
     def get_all(self) -> dict[str, Any]:
         with self._lock:
             return deepcopy(self.resolved_config)
-
-    def get_section(self, section: str, default=None):
-        with self._lock:
-            value = self.resolved_config.get(section, default)
-            return deepcopy(value)
 
     def get_flow_daemon_config(self) -> dict[str, Any]:
         with self._lock:
@@ -186,12 +158,9 @@ class SettingsManager:
         with self._lock:
             return deepcopy(self.runtime_config)
 
-    def get_runtime_flow_daemon_config(self) -> dict[str, Any]:
+    def get_database_config(self) -> dict[str, Any]:
         with self._lock:
-            value = self.runtime_config.get("flow_daemon", {})
-            if not isinstance(value, dict):
-                return {}
-            return deepcopy(value)
+            return deepcopy(self.resolved_config.get("database", {}))
 
     def get_auth_config(self) -> dict[str, Any]:
         with self._lock:
@@ -206,9 +175,7 @@ class SettingsManager:
             if not isinstance(current_flow_daemon, dict):
                 current_flow_daemon = {}
 
-            for key, value in updates.items():
-                if key in current_flow_daemon:
-                    current_flow_daemon[key] = value
+            current_flow_daemon.update(updates)
 
             self.runtime_config["flow_daemon"] = current_flow_daemon
             self._write_runtime_json(self.runtime_config)

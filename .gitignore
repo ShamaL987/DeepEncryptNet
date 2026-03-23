@@ -12,6 +12,7 @@ datasets/
 captures/
 notebooks/.ipynb_checkpoints/
 .env
+.env
 .venv/
 .idea/
 .vscode/

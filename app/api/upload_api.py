@@ -1,5 +1,6 @@
 from pathlib import Path
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends, Header
 from sqlalchemy.orm import Session
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/file-upload", tags=["File Upload"])
 async def upload_batch(
     request: Request, file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    x_api_key: str | None = Header(default=None)
+    x_api_key: Optional[str] = Header(default=None),
 ):
     get_user_by_external_token(db=db, raw_token=x_api_key)
 

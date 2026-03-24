@@ -597,7 +597,7 @@ class UploadClient:
         response = requests.get(
             self.validate_url,
             headers={
-                "Authorization": f"Bearer {self.api_token}",
+                "x-api-key": f"{self.api_token}",
                 "Accept": "application/json",
             },
             timeout=REQUEST_TIMEOUT_SECONDS,
@@ -619,7 +619,7 @@ class UploadClient:
             response = requests.post(
                 self.upload_url,
                 headers={
-                    "Authorization": f"Bearer {self.api_token}",
+                    "x-api-key": f"{self.api_token}",
                 },
                 files={
                     "file": (csv_path.name, file_handle, "text/csv"),

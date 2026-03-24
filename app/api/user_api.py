@@ -160,7 +160,7 @@ def _get_current_user(
     return user
 
 
-def _get_user_by_external_token(
+def get_user_by_external_token(
     db: Session,
     raw_token: str,
 ) -> User:
@@ -401,7 +401,7 @@ def validate_external_api_token(
     if not raw_token and authorization:
         raw_token = _extract_bearer_token(authorization)
 
-    current_user = _get_user_by_external_token(db=db, raw_token=raw_token)
+    current_user = get_user_by_external_token(db=db, raw_token=raw_token)
 
     return {
         "valid": True,

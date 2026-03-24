@@ -1,9 +1,9 @@
 import { getAuthorizationHeaderValue } from "@/auth/storage.ts";
 
 
-export const APP_ENV = import.meta.env.VITE_APP_ENV || "local";
+export const APP_ENV = import.meta.env.VITE_APP_ENV || "dev";
 export const API_BASE =
-  APP_ENV === "production" || APP_ENV === "staging"
+  APP_ENV === "production" || APP_ENV === "staging" || APP_ENV === "local"
     ? "/api"
     : "http://localhost:8000/api";
 

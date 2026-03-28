@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-BPF_FILTER = "tcp port 443 or udp port 443"
+BPF_FILTER = "tcp port 443"
 SCHEMA_VERSION = "v1"
 
 ROTATE_EVERY_SECONDS = 60

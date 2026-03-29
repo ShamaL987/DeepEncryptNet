@@ -1,9 +1,9 @@
 {
   "flow_daemon": {
-    "ready_dir": "data/files/files/captures/ready/",
-    "processing_dir": "data/files/files/processing/processing_dir",
-    "processed_dir": "data/files/files/processing/processed_dir",
-    "streams_dir": "data/files/files/processing/streams_dir",
+    "ready_dir": "data/files/captures/ready/",
+    "processing_dir": "data/files/processing/processing_dir",
+    "processed_dir": "data/files/processing/processed_dir",
+    "streams_dir": "data/files/processing/streams_dir",
     "idle_timeout_sec": 10,
     "max_packets": 100,
     "max_duration_sec": 30,

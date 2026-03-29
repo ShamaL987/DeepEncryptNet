@@ -77,6 +77,13 @@ def create_application() -> FastAPI:
     if assets_dir.exists():
         application.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
+    @application.get("/favicon.ico", include_in_schema=False)
+    def serve_favicon():
+        favicon_path = frontend_dir / "favicon.ico"
+        if favicon_path.exists():
+            return FileResponse(favicon_path, media_type="image/x-icon")
+        return JSONResponse({"detail": "Favicon not found"}, status_code=404)
+
     @application.get("/", include_in_schema=False)
     def serve_dashboard():
         index_path = frontend_dir / "index.html"

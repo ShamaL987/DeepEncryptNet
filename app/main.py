@@ -84,6 +84,13 @@ def create_application() -> FastAPI:
             return FileResponse(favicon_path, media_type="image/x-icon")
         return JSONResponse({"detail": "Favicon not found"}, status_code=404)
 
+    @application.get("/logo.png", include_in_schema=False)
+    def serve_logo():
+        logo_path = frontend_dir / "logo.png"
+        if logo_path.exists():
+            return FileResponse(logo_path, media_type="image/png")
+        return JSONResponse({"detail": "Logo not found"}, status_code=404)
+
     @application.get("/", include_in_schema=False)
     def serve_dashboard():
         index_path = frontend_dir / "index.html"

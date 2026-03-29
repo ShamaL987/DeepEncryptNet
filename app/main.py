@@ -47,6 +47,9 @@ def create_application() -> FastAPI:
     application = FastAPI(
         title="DeepEncryptNet Flow Daemon",
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
     application.add_middleware(

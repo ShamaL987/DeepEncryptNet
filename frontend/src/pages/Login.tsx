@@ -51,8 +51,12 @@ export default function Login() {
       <Card className="w-full max-w-sm bg-card border-border">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">DN</span>
+            <div className="h-12 w-12 rounded-lg flex items-center justify-center">
+              <img
+                  src="/logo.png"
+                  alt="DeepEncryptNet logo"
+                  className="h-15 w-15 rounded-md object-contain shrink-0"
+              />
             </div>
           </div>
           <CardTitle className="text-lg">DeepEncryptNet</CardTitle>

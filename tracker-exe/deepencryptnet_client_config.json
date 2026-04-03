@@ -1,7 +1,0 @@
-{
-  "schema_version": "v1",
-  "server_url": "https://deepencryptnet-staging-test.up.railway.app",
-  "api_token": "den_e69b8d67_8464781943774cfc97d88c0ff49a605593ab54d065915f569c24c9acee85ca1e",
-  "upload_path": "api/file-upload/ingest",
-  "validate_path": "api/user/external/validate"
-}

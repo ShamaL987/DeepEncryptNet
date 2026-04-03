@@ -6,15 +6,33 @@ The `local-runner` folder is the local runnable package for DeepEncryptNet. The 
 
 This runner package is designed to make the local setup simple and repeatable. Once started, it will pull the required Docker image, apply the local configuration, mount the current runner folder as the required files directory, and start the DeepEncryptNet system.
 
+## Requirement
+
+Make sure **Tshark** is installed and available on the machine.
+
+This application depends on `tshark` for:
+- listing network interfaces
+- selecting a capture interface
+- capturing HTTPS traffic packets
+
+## Verify Tshark
+
+Open Command Prompt and run:
+
+```bat
+where tshark
+tshark -D
+```
+
 ## How to Run the System
 
 1. Copy the `local-runner` folder anywhere on the computer and copy the tracker-exe/deepencryptnet_local.exe file to the same folder.
 2. Open the folder.
 3. Double-click `run.bat`.
 4. Wait until the Docker image is pulled and the container starts.
-5. after the container starts, run configure.bat.
-6. run the tracker-exe/deepencryptnet_local.exe file and select the port to monitor.
-7. run the pipline from UI
+5. After the container starts, run `configure.bat`.
+6. Run the `tracker-exe/deepencryptnet_local.exe` file and select the port to monitor.
+7. Run the pipline from UI
 
 After the startup process is completed, the DeepEncryptNet application will be available locally through the browser.
 

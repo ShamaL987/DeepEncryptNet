@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `local-runner` folder is the local runnable package for DeepEncryptNet. The user does not need the full source code repository in order to run the system locally. The only requirement is to copy the `deepencryptnet-runner` folder to any location on the computer and use the provided batch files.
+The `local-runner` folder is the local runnable package for DeepEncryptNet. The user does not need the full source code repository in order to run the system locally. The only requirement is to copy the `local-runner` folder to any location on the computer and use the provided batch files.
 
 This runner package is designed to make the local setup simple and repeatable. Once started, it will pull the required Docker image, apply the local configuration, mount the current runner folder as the required files directory, and start the DeepEncryptNet system.
 
@@ -37,7 +37,7 @@ Default password: TempPassword123!
 
 To stop the running DeepEncryptNet local instance:
 
-1. Open the same `deepencryptnet-runner` folder.
+1. Open the same `local-runner` folder.
 2. Double-click `stop.bat`.
 
 This will stop the local Docker container started by the runner package.
@@ -47,7 +47,7 @@ This will stop the local Docker container started by the runner package.
 A recommended structure for the local runner package is shown below.
 
 ```text
-deepencryptnet-runner/
+local-runner/
 ├── docker-compose.yml
 ├── .env
 ├── run.bat
@@ -117,7 +117,7 @@ These values control the local runtime environment, authentication-related setti
 
 The runner package is designed so that the folder containing the batch file can be used directly as the mounted local directory for the container.
 
-This means the user can copy the `deepencryptnet-runner` folder to any place on the computer and run it from there. During startup, that local folder is mounted into the container path used by the application for file access.
+This means the user can copy the `local-runner` folder to any place on the computer and run it from there. During startup, that local folder is mounted into the container path used by the application for file access.
 
 Container mount target:
 
@@ -148,6 +148,6 @@ Before running the local setup, ensure the following are available on the comput
 
 The local setup process is intentionally simple:
 
-1. Copy the `deepencryptnet-runner` folder anywhere on the computer.
+1. Copy the `local-runner` folder anywhere on the computer.
 2. Double-click `run.bat`.
 3. Access the UI from the browser using `[http://lo](http://lo)

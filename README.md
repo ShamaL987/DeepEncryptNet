@@ -84,6 +84,12 @@ This repository contains the backend implementation, including:
 
 ---
 
+## Quick Local Run
+
+See the detailed setup guide here: [Quick Local Run](docs/local-runner.md)
+
+---
+
 ## Build Packet Sniffer Executable
 
 ```bash

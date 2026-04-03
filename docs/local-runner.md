@@ -2,13 +2,13 @@
 
 ## Overview
 
-The `deepencryptnet-runner` folder is the local runnable package for DeepEncryptNet. The user does not need the full source code repository in order to run the system locally. The only requirement is to copy the `deepencryptnet-runner` folder to any location on the computer and use the provided batch files.
+The `local-runner` folder is the local runnable package for DeepEncryptNet. The user does not need the full source code repository in order to run the system locally. The only requirement is to copy the `deepencryptnet-runner` folder to any location on the computer and use the provided batch files.
 
 This runner package is designed to make the local setup simple and repeatable. Once started, it will pull the required Docker image, apply the local configuration, mount the current runner folder as the required files directory, and start the DeepEncryptNet system.
 
 ## How to Run the System
 
-1. Copy the `deepencryptnet-runner` folder anywhere on the computer and copy the tracker-exe/deepencryptnet_local.exe file to the same folder.
+1. Copy the `local-runner` folder anywhere on the computer and copy the tracker-exe/deepencryptnet_local.exe file to the same folder.
 2. Open the folder.
 3. Double-click `run.bat`.
 4. Wait until the Docker image is pulled and the container starts.
@@ -27,6 +27,11 @@ http://localhost:8000
 ```
 
 If the configured port is changed in the Docker Compose file, the URL should be updated accordingly.
+
+```text
+Default username: admin@deepencryptnet.com
+Default password: TempPassword123!
+```
 
 ## How to Stop the System
 
